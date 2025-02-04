@@ -32,17 +32,17 @@ public class StructureConfigManager {
                 server.registryAccess()
                         .registry(Registries.STRUCTURE)
                         .ifPresent(registry -> {
-                            List<ResourceLocation> structures = new ArrayList<>();
                             registry.forEach(structure -> {
                                 ResourceLocation id = registry.getKey(structure);
-                                if (id != null) structures.add(id);
-                            });
-
-                            structures.forEach(id -> {
-                                Path configPath = CONFIG_DIR.resolve(id.getPath() + ".json");
-                                if (!configPath.toFile().exists()) {
-                                    try (FileWriter writer = new FileWriter(configPath.toFile())) {
-                                        GSON.toJson(new StructureConfig(), writer);
+                                if (id != null) {
+                                    Path configPath = CONFIG_DIR.resolve(id.toString().replace(':', '/') + ".json");
+                                    try {
+                                        Files.createDirectories(configPath.getParent());
+                                        if (!configPath.toFile().exists()) {
+                                            try (FileWriter writer = new FileWriter(configPath.toFile())) {
+                                                GSON.toJson(new StructureConfig(), writer);
+                                            }
+                                        }
                                     } catch (IOException e) {
                                         e.printStackTrace();
                                     }
@@ -61,17 +61,17 @@ public class StructureConfigManager {
 
     public void loadConfigs() {
         configCache.clear();
-        System.out.println("Loading configs from: " + CONFIG_DIR);
         try {
             Files.walk(CONFIG_DIR)
                     .filter(Files::isRegularFile)
                     .filter(path -> path.toString().endsWith(".json"))
                     .forEach(path -> {
                         try {
-                            String structureName = path.getFileName().toString().replace(".json", "");
-                            System.out.println("Loading config for: " + structureName);
+                            String relativePath = CONFIG_DIR.relativize(path).toString().replace('\\', '/');
+                            String structureId = relativePath.substring(0, relativePath.length() - 5); // Remove .json
+                            ResourceLocation id = ResourceLocation.tryParse(structureId);
                             StructureConfig config = GSON.fromJson(Files.readString(path), StructureConfig.class);
-                            configCache.put(ResourceLocation.tryParse(structureName), config);
+                            configCache.put(id, config);
                         } catch (IOException e) {
                             e.printStackTrace();
                         }
