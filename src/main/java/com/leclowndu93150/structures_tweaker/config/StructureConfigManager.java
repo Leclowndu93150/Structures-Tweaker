@@ -103,10 +103,6 @@ public class StructureConfigManager {
         return configCache;
     }
 
-    public StructureConfig getConfig(ResourceLocation id) {
-        return configCache.get(id);
-    }
-
     @Override
     public String toString() {
         return "StructureConfigManager{" +

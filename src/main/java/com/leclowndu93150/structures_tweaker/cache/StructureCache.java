@@ -49,12 +49,6 @@ public class StructureCache {
         return dimCache != null ? dimCache.get(getBlockKey(pos)) : null;
     }
 
-    public BoundingBox getBoundsForChunk(Level level, ChunkPos pos) {
-        String dimensionKey = level.dimension().location().toString();
-        Long2ObjectMap<BoundingBox> dimCache = boundingBoxCache.get(dimensionKey);
-        return dimCache != null ? dimCache.get(getChunkKey(pos)) : null;
-    }
-
     @SubscribeEvent
     public void onChunkUnload(ChunkEvent.Unload event) {
         if (event.getChunk() instanceof LevelChunk chunk) {

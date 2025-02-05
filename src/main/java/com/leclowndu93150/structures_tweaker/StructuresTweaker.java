@@ -20,7 +20,6 @@ import java.util.concurrent.TimeUnit;
 public class StructuresTweaker {
     public static final String MODID = "structures_tweaker";
     private static final Logger LOGGER = LogManager.getLogger(MODID);
-    private static final int CONFIG_LOAD_TIMEOUT_SECONDS = 30;
     private final StructureConfigManager configManager;
     private final StructureCache structureCache;
     private final StructureEventHandler structureEventHandler;
