@@ -24,6 +24,8 @@ public class StructuresTweaker {
     private final StructureCache structureCache;
     private final StructureEventHandler structureEventHandler;
 
+    //TODO: Save the structure's original blocks as save data instead of temporary
+
     public StructuresTweaker(IEventBus modEventBus) {
         this.configManager = new StructureConfigManager();
         this.structureCache = new StructureCache();

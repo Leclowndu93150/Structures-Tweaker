@@ -1,6 +1,5 @@
 package com.leclowndu93150.structures_tweaker.events;
 
-import com.google.common.cache.Cache;
 import com.google.common.cache.CacheBuilder;
 import com.google.common.cache.CacheLoader;
 import com.google.common.cache.LoadingCache;
@@ -39,6 +38,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.*;
@@ -48,9 +48,6 @@ public class StructureEventHandler {
     private final StructureConfigManager configManager;
     private final StructureCache structureCache;
     private final Map<ResourceLocation, StructureEventFlags> structureFlags;
-    private final Cache<BlockPos, RegenerationData> regenerationQueue;
-    private final Map<BlockPos, ScheduledFuture<?>> regenerationTasks;
-    private final ScheduledExecutorService regenerationExecutor;
     private final Long2ObjectMap<ResourceLocation> structureLocations;
 
     private static final Logger LOGGER = LogManager.getLogger(StructuresTweaker.MODID);
@@ -71,15 +68,6 @@ public class StructureEventHandler {
         this.configManager = configManager;
         this.structureCache = structureCache;
         this.structureFlags = new ConcurrentHashMap<>();
-        this.regenerationQueue = CacheBuilder.newBuilder()
-                .expireAfterWrite(24, TimeUnit.HOURS)
-                .build();
-        this.regenerationTasks = new ConcurrentHashMap<>();
-        this.regenerationExecutor = Executors.newSingleThreadScheduledExecutor(r -> {
-            Thread t = new Thread(r, "Structure-Regeneration");
-            t.setDaemon(true);
-            return t;
-        });
         this.structureLocations = new Long2ObjectOpenHashMap<>();
     }
 
@@ -124,7 +112,7 @@ public class StructureEventHandler {
         if (event.getLevel().isClientSide()) return;
         if (!configManager.isReady()) return;
 
-        handleStructureEvent(event.getEntity().level(), event.getPos(), (structure, flags) -> {
+        handleStructureEvent(Objects.requireNonNull(event.getEntity()).level(), event.getPos(), (structure, flags) -> {
             if (event.getPlacedBlock().getBlock() == Blocks.FIRE) {
                 if (!flags.allowFireSpread()) {
                     event.setCanceled(true);
@@ -230,21 +218,8 @@ public class StructureEventHandler {
 
     @SubscribeEvent
     public void onServerStopped(ServerStoppedEvent event) {
-        regenerationTasks.values().forEach(task -> task.cancel(false));
-        regenerationTasks.clear();
-        regenerationQueue.invalidateAll();
         structureLocations.clear();
         structureFlags.clear();
-
-        regenerationExecutor.shutdown();
-        try {
-            if (!regenerationExecutor.awaitTermination(30, TimeUnit.SECONDS)) {
-                regenerationExecutor.shutdownNow();
-            }
-        } catch (InterruptedException e) {
-            regenerationExecutor.shutdownNow();
-            Thread.currentThread().interrupt();
-        }
     }
 
     private void handleStructureEvent(Level level, BlockPos pos, BiPredicate<ResourceLocation, StructureEventFlags> callback) {
@@ -272,8 +247,6 @@ public class StructureEventHandler {
                 (STRUCTURE_BLOCKS.contains(blockItem.getBlock()) ||
                         PROTECTED_BLOCKS.contains(blockItem.getBlock()));
     }
-
-    private record RegenerationData(Level level, BlockState originalState, long regenerationTime) {}
 
     private record StructureEventFlags(
             boolean canBreakBlocks,
