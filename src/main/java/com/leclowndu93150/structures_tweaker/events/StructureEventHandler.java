@@ -11,6 +11,7 @@ import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.world.InteractionResult;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.MobCategory;
 import net.minecraft.world.entity.item.ItemEntity;
@@ -26,8 +27,10 @@ import net.minecraft.world.level.levelgen.structure.BoundingBox;
 import net.minecraft.world.level.levelgen.structure.Structure;
 import net.minecraft.world.level.levelgen.structure.StructureStart;
 import net.neoforged.bus.api.SubscribeEvent;
+import net.neoforged.neoforge.common.util.TriState;
 import net.neoforged.neoforge.event.entity.living.FinalizeSpawnEvent;
 import net.neoforged.neoforge.event.entity.player.AttackEntityEvent;
+import net.neoforged.neoforge.event.entity.player.ItemEntityPickupEvent;
 import net.neoforged.neoforge.event.entity.player.PlayerInteractEvent;
 import net.neoforged.neoforge.event.level.BlockEvent;
 import net.neoforged.neoforge.event.level.ExplosionEvent;
@@ -191,20 +194,17 @@ public class StructureEventHandler {
     }
 
     @SubscribeEvent
-    public void onItemPickup(PlayerInteractEvent.EntityInteract event) {
-        if (event.getLevel().isClientSide()) return;
+    public void onItemPickup(ItemEntityPickupEvent.Pre event) {
         if (!configManager.isReady()) return;
 
-        if (event.getTarget() instanceof ItemEntity item) {
-            handleStructureEvent(event.getLevel(), event.getPos(), (structure, flags) -> {
-                if (!flags.allowItemPickup() ||
-                        (isProtectedItem(item))) {
-                    event.setCanceled(true);
-                    return true;
-                }
-                return false;
-            });
-        }
+        ItemEntity item = event.getItemEntity();
+        handleStructureEvent(item.level(), item.blockPosition(), (structure, flags) -> {
+            if (!flags.allowItemPickup() || isProtectedItem(item)) {
+                event.setCanPickup(TriState.FALSE);
+                return true;
+            }
+            return false;
+        });
     }
 
     @SubscribeEvent
