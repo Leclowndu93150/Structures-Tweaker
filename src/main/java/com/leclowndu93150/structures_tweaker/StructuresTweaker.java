@@ -37,16 +37,10 @@ public class StructuresTweaker {
 
     @SubscribeEvent
     public void onServerStarted(ServerStartedEvent event) {
-        LOGGER.info("Server started, initializing StructuresTweaker");
-        try {
-            structureCache.clearCache();
-            configManager.generateConfigs();
-            configManager.loadConfigs();
-            structureEventHandler.initializeFlags();
-            LOGGER.info("StructuresTweaker initialization complete");
-        } catch (Exception e) {
-            LOGGER.error("Failed to initialize StructuresTweaker", e);
-        }
+        structureCache.clearCache();
+        configManager.generateConfigs();
+        configManager.loadConfigs();
+        structureEventHandler.reloadFlags();
     }
 
     @SubscribeEvent

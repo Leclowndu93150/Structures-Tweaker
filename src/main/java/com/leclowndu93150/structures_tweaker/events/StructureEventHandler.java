@@ -80,24 +80,11 @@ public class StructureEventHandler {
         this.structureLocations = new Long2ObjectOpenHashMap<>();
     }
 
-    @SubscribeEvent
-    public void onServerStarted(ServerStartedEvent event) {
-        initializeFlags();
-    }
-
-    public void initializeFlags() {
+    public void reloadFlags() {
         structureFlags.clear();
-        Map<ResourceLocation, StructureConfig> configs = configManager.getAllConfigs();
-        LOGGER.debug("Loading {} structure flags", configs.size());
-
-        configs.forEach((id, config) -> {
-            String path = id.toString()
-                    .replace("minecraft/minecraft/", "minecraft/")
-                    .replace("minecraft/minecraft:", "minecraft:");
-            ResourceLocation cleanId = ResourceLocation.tryParse(path);
-            LOGGER.debug("Mapping {} -> {}", id, cleanId);
-
-            structureFlags.put(cleanId, new StructureEventFlags(
+        configManager.getAllConfigs().forEach((id, config) -> {
+            ResourceLocation normalizedId = normalizeStructureId(id);
+            structureFlags.put(normalizedId, new StructureEventFlags(
                     config.canBreakBlocks(),
                     config.canBreakStructureBlocks(),
                     config.canInteract(),
@@ -113,7 +100,6 @@ public class StructureEventHandler {
                     config.allowItemPickup()
             ));
         });
-        LOGGER.info("Initialized {} structure flags with mappings: {}", structureFlags.size(), structureFlags.keySet());
     }
 
     @SubscribeEvent
@@ -290,67 +276,41 @@ public class StructureEventHandler {
         }
     }
 
-    private void handleStructureEvent(Level level, BlockPos pos,
-                                      BiPredicate<ResourceLocation, StructureEventFlags> callback) {
-        LOGGER.debug("Handling structure event at pos: {} level: {}", pos, level.dimension().location());
-
-        if (level == null || pos == null) {
-            LOGGER.debug("Level or position null");
-            return;
-        }
-
-        ResourceLocation structure = findOrCacheStructure(level, pos);
-        LOGGER.debug("Found structure: {}", structure);
-
+    private void handleStructureEvent(Level level, BlockPos pos, BiPredicate<ResourceLocation, StructureEventFlags> callback) {
+        ResourceLocation structure = findAndCacheStructure(level, pos);
         if (structure != null) {
+            structure = normalizeStructureId(structure);
             StructureEventFlags flags = structureFlags.get(structure);
-            LOGGER.debug("Structure flags: {}", flags);
-
             if (flags != null) {
-                try {
-                    callback.test(structure, flags);
-                } catch (Exception e) {
-                    LOGGER.error("Error in structure callback:", e);
-                    e.printStackTrace();
-                }
+                callback.test(structure, flags);
             }
         }
     }
 
-    private ResourceLocation findOrCacheStructure(Level level, BlockPos pos) {
-        if (level == null || pos == null) return null;
-
-        ResourceLocation cachedStructure = structureCache.getStructureAt(level, pos);
-        if (cachedStructure != null) return cleanResourceLocation(cachedStructure);
+    private ResourceLocation findAndCacheStructure(Level level, BlockPos pos) {
+        ResourceLocation cached = structureCache.getStructureAt(level, pos);
+        if (cached != null) return cached;
 
         LevelChunk chunk = level.getChunkAt(pos);
-        if (chunk.isEmpty()) return null;
+        var registry = level.registryAccess().registryOrThrow(Registries.STRUCTURE);
 
-        if (!level.isClientSide()) {
-            var registry = level.registryAccess().registry(Registries.STRUCTURE);
-            if (registry.isEmpty()) {
-                LOGGER.error("Structure registry not available");
-                return null;
-            }
-
-            for (Map.Entry<Structure, StructureStart> entry : chunk.getAllStarts().entrySet()) {
-                if (entry.getValue().getBoundingBox().isInside(pos)) {
-                    ResourceLocation id = registry.get().getKey(entry.getKey());
-                    if (id != null) {
-                        id = cleanResourceLocation(id);
-                        structureCache.cacheStructure(level, pos, id, entry.getValue().getBoundingBox());
-                        return id;
-                    }
+        for (Map.Entry<Structure, StructureStart> entry : chunk.getAllStarts().entrySet()) {
+            if (entry.getValue().getBoundingBox().isInside(pos)) {
+                ResourceLocation id = registry.getKey(entry.getKey());
+                if (id != null) {
+                    id = normalizeStructureId(id);
+                    structureCache.cacheStructure(level, pos, id, entry.getValue().getBoundingBox());
+                    return id;
                 }
             }
         }
         return null;
     }
 
-    private ResourceLocation cleanResourceLocation(ResourceLocation id) {
-        String path = id.toString().replace("minecraft/minecraft/", "minecraft/")
-                .replace("minecraft/minecraft:", "minecraft:");
-        return ResourceLocation.tryParse(path);
+    private ResourceLocation normalizeStructureId(ResourceLocation id) {
+        return ResourceLocation.tryParse(id.toString()
+                .replace("minecraft:minecraft/", "minecraft:")
+                .replace("minecraft/minecraft:", "minecraft:"));
     }
 
     private void scheduleBlockRegeneration(BlockPos pos, BlockState state, int minutes, Level level) {

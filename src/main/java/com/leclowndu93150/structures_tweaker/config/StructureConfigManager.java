@@ -31,41 +31,24 @@ public class StructureConfigManager {
     private static final org.apache.logging.log4j.Logger LOGGER = org.apache.logging.log4j.LogManager.getLogger();
 
     public void generateConfigs() {
-        try {
-            LOGGER.debug("Generating missing configs at {}", CONFIG_DIR);
-            Files.createDirectories(CONFIG_DIR);
-
-            MinecraftServer server = ServerLifecycleHooks.getCurrentServer();
-            if (server == null) {
-                LOGGER.error("Server is null during config generation");
-                return;
-            }
-
+        MinecraftServer server = ServerLifecycleHooks.getCurrentServer();
+        if (server != null) {
             server.registryAccess().registry(Registries.STRUCTURE).ifPresent(registry -> {
                 registry.forEach(structure -> {
                     ResourceLocation id = registry.getKey(structure);
                     if (id != null) {
-                        Path configPath = CONFIG_DIR.resolve(id.toString().replace(':', '/') + ".json");
-
-                        if (!configPath.toFile().exists()) {
-                            LOGGER.debug("Generating new config for {}", id);
-                            try {
-                                Files.createDirectories(configPath.getParent());
-                                StructureConfig config = loadModDefault(id);
-                                try (FileWriter writer = new FileWriter(configPath.toFile())) {
-                                    GSON.toJson(config, writer);
-                                }
-                            } catch (IOException e) {
-                                LOGGER.error("Failed to generate config for {}", id, e);
+                        Path configPath = CONFIG_DIR.resolve(id.getNamespace() + "/" + id.getPath() + ".json");
+                        try {
+                            Files.createDirectories(configPath.getParent());
+                            if (!Files.exists(configPath)) {
+                                Files.writeString(configPath, GSON.toJson(new StructureConfig()));
                             }
-                        } else {
-                            LOGGER.debug("Config already exists for {}", id);
+                        } catch (IOException e) {
+                            e.printStackTrace();
                         }
                     }
                 });
             });
-        } catch (IOException e) {
-            LOGGER.error("Failed to create config directory", e);
         }
     }
 
@@ -91,7 +74,6 @@ public class StructureConfigManager {
     }
 
     public void loadConfigs() {
-        LOGGER.debug("Loading configs from {}", CONFIG_DIR);
         configCache.clear();
 
         try {
@@ -103,19 +85,16 @@ public class StructureConfigManager {
                             String relativePath = CONFIG_DIR.relativize(path).toString().replace('\\', '/');
                             String structureId = relativePath.substring(0, relativePath.length() - 5);
                             ResourceLocation id = ResourceLocation.tryParse(structureId);
-
-                            LOGGER.debug("Loading config for structure: {} from {}", id, path);
-                            StructureConfig config = GSON.fromJson(Files.readString(path), StructureConfig.class);
-                            configCache.put(id, config);
-                            LOGGER.debug("Loaded config: {}", config);
+                            if (id != null) {
+                                StructureConfig config = GSON.fromJson(Files.readString(path), StructureConfig.class);
+                                configCache.put(id, config);
+                            }
                         } catch (IOException e) {
-                            LOGGER.error("Failed to load config from {}", path, e);
+                            e.printStackTrace();
                         }
                     });
-
-            LOGGER.debug("Loaded {} structure configs", configCache.size());
         } catch (IOException e) {
-            LOGGER.error("Failed to load configs", e);
+            e.printStackTrace();
         }
         configsLoaded = true;
     }
