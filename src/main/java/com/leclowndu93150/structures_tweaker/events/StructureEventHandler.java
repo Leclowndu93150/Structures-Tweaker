@@ -2,9 +2,10 @@ package com.leclowndu93150.structures_tweaker.events;
 
 import com.google.common.cache.Cache;
 import com.google.common.cache.CacheBuilder;
+import com.google.common.cache.CacheLoader;
+import com.google.common.cache.LoadingCache;
 import com.leclowndu93150.structures_tweaker.StructuresTweaker;
 import com.leclowndu93150.structures_tweaker.cache.StructureCache;
-import com.leclowndu93150.structures_tweaker.config.StructureConfig;
 import com.leclowndu93150.structures_tweaker.config.StructureConfigManager;
 import it.unimi.dsi.fastutil.longs.Long2ObjectMap;
 import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;
@@ -22,6 +23,7 @@ import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.chunk.LevelChunk;
+import net.minecraft.world.level.levelgen.structure.BoundingBox;
 import net.minecraft.world.level.levelgen.structure.Structure;
 import net.minecraft.world.level.levelgen.structure.StructureStart;
 import net.neoforged.bus.api.SubscribeEvent;
@@ -31,12 +33,13 @@ import net.neoforged.neoforge.event.entity.player.PlayerInteractEvent;
 import net.neoforged.neoforge.event.level.BlockEvent;
 import net.neoforged.neoforge.event.level.ExplosionEvent;
 import net.neoforged.neoforge.event.level.ChunkEvent;
-import net.neoforged.neoforge.event.server.ServerStartedEvent;
 import net.neoforged.neoforge.event.server.ServerStoppedEvent;
+import org.apache.commons.lang3.tuple.Triple;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.*;
 import java.util.function.BiPredicate;
@@ -86,57 +89,30 @@ public class StructureEventHandler {
             ResourceLocation normalizedId = normalizeStructureId(id);
             structureFlags.put(normalizedId, new StructureEventFlags(
                     config.canBreakBlocks(),
-                    config.canBreakStructureBlocks(),
                     config.canInteract(),
                     config.canPlaceBlocks(),
-                    config.getMobSpawnRate(),
-                    config.allowMobSpawning(),
                     config.allowPlayerPVP(),
                     config.allowCreatureSpawning(),
-                    config.getRegenerationTime(),
-                    config.protectArtifacts(),
                     config.allowFireSpread(),
                     config.allowExplosions(),
-                    config.allowItemPickup()
+                    config.allowItemPickup(),
+                    config.onlyProtectOriginalBlocks()
             ));
         });
     }
 
     @SubscribeEvent
     public void onBlockBreak(BlockEvent.BreakEvent event) {
-        LOGGER.debug("Block break at pos: {} dimension: {}", event.getPos(),
-                event.getPlayer().level().dimension().location());
+        if (!configManager.isReady()) return;
 
-        if (!configManager.isReady()) {
-            LOGGER.debug("Config manager not ready, skipping");
-            return;
-        }
-
-        Level level = event.getPlayer().level();
-        BlockPos pos = event.getPos();
-
-        handleStructureEvent(level, pos, (structure, flags) -> {
-            LOGGER.debug("Structure check: {} flags: {}", structure, flags);
-            Block block = event.getState().getBlock();
-
-            if (STRUCTURE_BLOCKS.contains(block)) {
-                LOGGER.debug("Found structure block: {}", block);
-                if (!flags.canBreakStructureBlocks()) {
-                    LOGGER.debug("Structure block breaking disabled");
-                    event.setCanceled(true);
-                    return true;
-                }
-            }
-
-            if (!flags.canBreakBlocks()) {
-                LOGGER.debug("Block breaking disabled in structure");
+        handleStructureEvent(event.getPlayer().level(), event.getPos(), (structure, flags) -> {
+            if (flags.onlyProtectOriginalBlocks() && isStructureBlock(event.getPlayer().level(), event.getPos())) {
                 event.setCanceled(true);
                 return true;
             }
-
-            if (flags.regenerationTime() > 0) {
-                LOGGER.debug("Scheduling regeneration in {} minutes", flags.regenerationTime());
-                scheduleBlockRegeneration(pos, event.getState(), flags.regenerationTime(), level);
+            if (!flags.canBreakBlocks()) {
+                event.setCanceled(true);
+                return true;
             }
             return false;
         });
@@ -178,35 +154,30 @@ public class StructureEventHandler {
 
     @SubscribeEvent
     public void onExplosion(ExplosionEvent.Start event) {
-        if (event.getLevel().isClientSide()) return;
-        if (!configManager.isReady()) return;
+        if (event.getLevel().isClientSide() || !configManager.isReady()) return;
 
-        handleStructureEvent(event.getLevel(), event.getExplosion().getDirectSourceEntity().blockPosition(),
-                (structure, flags) -> {
-                    if (!flags.allowExplosions()) {
-                        event.setCanceled(true);
-                        return true;
-                    }
-                    return false;
-                });
+        Entity source = event.getExplosion().getDirectSourceEntity();
+        BlockPos pos = source != null ? source.blockPosition() :
+                new BlockPos((int)event.getExplosion().x,
+                        (int)event.getExplosion().y,
+                        (int)event.getExplosion().z);
+
+        handleStructureEvent(event.getLevel(), pos, (structure, flags) -> {
+            if (!flags.allowExplosions()) {
+                event.setCanceled(true);
+                return true;
+            }
+            return false;
+        });
     }
 
     @SubscribeEvent
     public void onMobSpawn(FinalizeSpawnEvent event) {
-        if (event.getLevel().isClientSide()) return;
-        if (!configManager.isReady()) return;
+        if (event.getLevel().isClientSide() || !configManager.isReady()) return;
 
         handleStructureEvent(event.getLevel().getLevel(), event.getEntity().blockPosition(),
                 (structure, flags) -> {
-                    if (!flags.allowMobSpawning() ||
-                            (event.getEntity().getType().getCategory() == MobCategory.CREATURE
-                                    && !flags.allowCreatureSpawning())) {
-                        event.setCanceled(true);
-                        return true;
-                    }
-
-                    if (flags.mobSpawnRate() < 1.0f &&
-                            event.getLevel().getRandom().nextFloat() > flags.mobSpawnRate()) {
+                    if (event.getEntity().getType().getCategory() == MobCategory.CREATURE && !flags.allowCreatureSpawning()) {
                         event.setCanceled(true);
                         return true;
                     }
@@ -239,7 +210,7 @@ public class StructureEventHandler {
         if (event.getTarget() instanceof ItemEntity item) {
             handleStructureEvent(event.getLevel(), event.getPos(), (structure, flags) -> {
                 if (!flags.allowItemPickup() ||
-                        (flags.protectArtifacts() && isProtectedItem(item))) {
+                        (isProtectedItem(item))) {
                     event.setCanceled(true);
                     return true;
                 }
@@ -277,61 +248,23 @@ public class StructureEventHandler {
     }
 
     private void handleStructureEvent(Level level, BlockPos pos, BiPredicate<ResourceLocation, StructureEventFlags> callback) {
-        ResourceLocation structure = findAndCacheStructure(level, pos);
-        if (structure != null) {
-            structure = normalizeStructureId(structure);
-            StructureEventFlags flags = structureFlags.get(structure);
-            if (flags != null) {
-                callback.test(structure, flags);
-            }
-        }
-    }
-
-    private ResourceLocation findAndCacheStructure(Level level, BlockPos pos) {
-        ResourceLocation cached = structureCache.getStructureAt(level, pos);
-        if (cached != null) return cached;
-
-        LevelChunk chunk = level.getChunkAt(pos);
-        var registry = level.registryAccess().registryOrThrow(Registries.STRUCTURE);
-
-        for (Map.Entry<Structure, StructureStart> entry : chunk.getAllStarts().entrySet()) {
-            if (entry.getValue().getBoundingBox().isInside(pos)) {
-                ResourceLocation id = registry.getKey(entry.getKey());
-                if (id != null) {
-                    id = normalizeStructureId(id);
-                    structureCache.cacheStructure(level, pos, id, entry.getValue().getBoundingBox());
-                    return id;
+        try {
+            Optional<ResourceLocation> structure = structureLookupCache.get(Triple.of(level, pos, level.getGameTime()));
+            structure.ifPresent(id -> {
+                StructureEventFlags flags = structureFlags.get(id);
+                if (flags != null) {
+                    callback.test(id, flags);
                 }
-            }
+            });
+        } catch (ExecutionException e) {
+            LOGGER.error("Error handling structure event at {}", pos, e);
         }
-        return null;
     }
 
     private ResourceLocation normalizeStructureId(ResourceLocation id) {
         return ResourceLocation.tryParse(id.toString()
                 .replace("minecraft:minecraft/", "minecraft:")
                 .replace("minecraft/minecraft:", "minecraft:"));
-    }
-
-    private void scheduleBlockRegeneration(BlockPos pos, BlockState state, int minutes, Level level) {
-        ScheduledFuture<?> existingTask = regenerationTasks.remove(pos);
-        if (existingTask != null) {
-            existingTask.cancel(false);
-        }
-
-        regenerationQueue.put(pos, new RegenerationData(level, state,
-                System.currentTimeMillis() + minutes * 60000L));
-
-        ScheduledFuture<?> task = regenerationExecutor.schedule(() -> {
-            RegenerationData data = regenerationQueue.getIfPresent(pos);
-            if (data != null && System.currentTimeMillis() >= data.regenerationTime()) {
-                data.level().setBlock(pos, data.originalState(), 3);
-                regenerationQueue.invalidate(pos);
-                regenerationTasks.remove(pos);
-            }
-        }, minutes, TimeUnit.MINUTES);
-
-        regenerationTasks.put(pos, task);
     }
 
     private boolean isProtectedItem(ItemEntity item) {
@@ -344,17 +277,82 @@ public class StructureEventHandler {
 
     private record StructureEventFlags(
             boolean canBreakBlocks,
-            boolean canBreakStructureBlocks,
             boolean canInteract,
             boolean canPlaceBlocks,
-            float mobSpawnRate,
-            boolean allowMobSpawning,
             boolean allowPlayerPVP,
             boolean allowCreatureSpawning,
-            int regenerationTime,
-            boolean protectArtifacts,
             boolean allowFireSpread,
             boolean allowExplosions,
-            boolean allowItemPickup
+            boolean allowItemPickup,
+            boolean onlyProtectOriginalBlocks
     ) {}
+
+
+    private final Map<ChunkPos, Set<BlockPos>> structureBlocks = new ConcurrentHashMap<>();
+
+    @SubscribeEvent
+    public void onChunkLoad(ChunkEvent.Load event) {
+        if (event.getChunk() instanceof LevelChunk chunk) {
+            chunk.getAllStarts().forEach((structure, start) -> {
+                BoundingBox box = start.getBoundingBox();
+                ChunkPos chunkPos = new ChunkPos(chunk.getPos().getWorldPosition());
+                structureBlocks.computeIfAbsent(chunkPos, k -> ConcurrentHashMap.newKeySet())
+                        .addAll(scanStructureBlocks(chunk.getLevel(), box, chunkPos));
+            });
+        }
+    }
+
+    private Set<BlockPos> scanStructureBlocks(Level level, BoundingBox box, ChunkPos chunkPos) {
+        Set<BlockPos> blocks = ConcurrentHashMap.newKeySet();
+        BlockPos.MutableBlockPos mutable = new BlockPos.MutableBlockPos();
+
+        for (int x = box.minX(); x <= box.maxX(); x++) {
+            for (int y = box.minY(); y <= box.maxY(); y++) {
+                for (int z = box.minZ(); z <= box.maxZ(); z++) {
+                    mutable.set(x, y, z);
+                    if (new ChunkPos(mutable).equals(chunkPos)) {
+                        BlockState state = level.getBlockState(mutable);
+                        if (!state.isAir()) {
+                            blocks.add(mutable.immutable());
+                        }
+                    }
+                }
+            }
+        }
+        return blocks;
+    }
+
+    private final LoadingCache<Triple<Level, BlockPos, Long>, Optional<ResourceLocation>> structureLookupCache = CacheBuilder.newBuilder()
+            .expireAfterWrite(1, TimeUnit.SECONDS)
+            .build(new CacheLoader<Triple<Level, BlockPos, Long>, Optional<ResourceLocation>>() {
+                @Override
+                public Optional<ResourceLocation> load(Triple<Level, BlockPos, Long> key) {
+                    Level level = key.getLeft();
+                    BlockPos pos = key.getMiddle();
+
+                    ResourceLocation cached = structureCache.getStructureAt(level, pos);
+                    if (cached != null) return Optional.of(cached);
+
+                    LevelChunk chunk = level.getChunkAt(pos);
+                    var registry = level.registryAccess().registryOrThrow(Registries.STRUCTURE);
+
+                    for (Map.Entry<Structure, StructureStart> entry : chunk.getAllStarts().entrySet()) {
+                        if (entry.getValue().getBoundingBox().isInside(pos)) {
+                            ResourceLocation id = registry.getKey(entry.getKey());
+                            if (id != null) {
+                                id = normalizeStructureId(id);
+                                structureCache.cacheStructure(level, pos, id, entry.getValue().getBoundingBox());
+                                return Optional.of(id);
+                            }
+                        }
+                    }
+                    return Optional.empty();
+                }
+            });
+
+    private boolean isStructureBlock(Level level, BlockPos pos) {
+        ChunkPos chunkPos = new ChunkPos(pos);
+        Set<BlockPos> blocks = structureBlocks.get(chunkPos);
+        return blocks != null && blocks.contains(pos);
+    }
 }
