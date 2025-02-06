@@ -7,6 +7,7 @@ import com.leclowndu93150.structures_tweaker.StructuresTweaker;
 import com.leclowndu93150.structures_tweaker.cache.StructureCache;
 import com.leclowndu93150.structures_tweaker.config.StructureConfigManager;
 import com.leclowndu93150.structures_tweaker.data.StructureBlocksData;
+import it.unimi.dsi.fastutil.longs.Long2ObjectMap;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.resources.ResourceLocation;
@@ -88,24 +89,36 @@ public class StructureEventHandler {
 
     @SubscribeEvent
     public void onBlockBreak(BlockEvent.BreakEvent event) {
-        if (!configManager.isReady() || !(event.getLevel() instanceof ServerLevel serverLevel)) return;
+        LOGGER.info("Block break event fired at {}", event.getPos());
+        if (!configManager.isReady() || !(event.getLevel() instanceof ServerLevel serverLevel)) {
+            LOGGER.info("Early return: configReady={}, isServerLevel={}",
+                    configManager.isReady(), event.getLevel() instanceof ServerLevel);
+            return;
+        }
 
         handleStructureEvent(event.getPlayer().level(), event.getPos(), (structure, flags) -> {
+            LOGGER.info("Structure check for break event: structure={}, canBreak={}",
+                    structure, flags.canBreakBlocks());
+
             StructureBlocksData blockData = StructureBlocksData.get(serverLevel);
 
             if (flags.onlyProtectOriginalBlocks()) {
                 if (blockData.isPlayerPlaced(event.getPos())) {
+                    LOGGER.info("Block is player placed, allowing break");
                     blockData.removePlayerBlock(event.getPos());
                     return false;
                 }
+                LOGGER.info("Block is original, preventing break");
                 event.setCanceled(true);
                 return true;
             }
 
             if (!flags.canBreakBlocks()) {
+                LOGGER.info("Breaking not allowed in structure");
                 event.setCanceled(true);
                 return true;
             }
+            LOGGER.info("Break allowed");
             return false;
         });
     }
@@ -220,16 +233,52 @@ public class StructureEventHandler {
     }
 
     private void handleStructureEvent(Level level, BlockPos pos, BiPredicate<ResourceLocation, StructureEventFlags> callback) {
-        try {
-            Optional<ResourceLocation> structure = structureLookupCache.get(Triple.of(level, pos, level.getGameTime()));
-            structure.ifPresent(id -> {
+        if (Thread.currentThread().getName().contains("worldgen")) {
+            return;
+        }
+
+        if (!configManager.isReady() || !level.hasChunkAt(pos)) {
+            return;
+        }
+
+        // First check cache
+        ResourceLocation cached = structureCache.getStructureAt(level, pos);
+        if (cached != null) {
+            StructureEventFlags flags = structureFlags.get(cached);
+            if (flags != null) {
+                callback.test(cached, flags);
+            }
+            return;
+        }
+
+        // Get server level for structure access
+        if (!(level instanceof ServerLevel serverLevel)) {
+            return;
+        }
+
+        LOGGER.info("Checking structures at {}", pos);
+
+        // Check all registered structures
+        var registry = level.registryAccess().registryOrThrow(Registries.STRUCTURE);
+        for (Structure structure : registry) {
+            ResourceLocation id = registry.getKey(structure);
+            if (id == null) continue;
+
+            // Check if the position is within this structure
+            if (serverLevel.structureManager().getStructureAt(pos, structure).isValid()) {
+                id = normalizeStructureId(id);
+                LOGGER.info("Found structure: {}", id);
+
+                // Get the structure's bounds
+                var reference = serverLevel.structureManager().getStructureAt(pos, structure);
+                structureCache.cacheStructure(level, pos, id, reference.getBoundingBox());
+
                 StructureEventFlags flags = structureFlags.get(id);
                 if (flags != null) {
                     callback.test(id, flags);
                 }
-            });
-        } catch (ExecutionException e) {
-            LOGGER.error("Error handling structure event at {}", pos, e);
+                return;
+            }
         }
     }
 
@@ -257,32 +306,4 @@ public class StructureEventHandler {
             boolean onlyProtectOriginalBlocks
     ) {}
 
-
-    private final LoadingCache<Triple<Level, BlockPos, Long>, Optional<ResourceLocation>> structureLookupCache = CacheBuilder.newBuilder()
-            .expireAfterWrite(1, TimeUnit.SECONDS)
-            .build(new CacheLoader<Triple<Level, BlockPos, Long>, Optional<ResourceLocation>>() {
-                @Override
-                public @NotNull Optional<ResourceLocation> load(Triple<Level, BlockPos, Long> key) {
-                    Level level = key.getLeft();
-                    BlockPos pos = key.getMiddle();
-
-                    ResourceLocation cached = structureCache.getStructureAt(level, pos);
-                    if (cached != null) return Optional.of(cached);
-
-                    LevelChunk chunk = level.getChunkAt(pos);
-                    var registry = level.registryAccess().registryOrThrow(Registries.STRUCTURE);
-
-                    for (Map.Entry<Structure, StructureStart> entry : chunk.getAllStarts().entrySet()) {
-                        if (entry.getValue().getBoundingBox().isInside(pos)) {
-                            ResourceLocation id = registry.getKey(entry.getKey());
-                            if (id != null) {
-                                id = normalizeStructureId(id);
-                                structureCache.cacheStructure(level, pos, id, entry.getValue().getBoundingBox());
-                                return Optional.of(id);
-                            }
-                        }
-                    }
-                    return Optional.empty();
-                }
-            });
 }

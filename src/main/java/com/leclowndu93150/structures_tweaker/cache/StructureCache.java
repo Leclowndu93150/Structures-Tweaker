@@ -1,5 +1,6 @@
 package com.leclowndu93150.structures_tweaker.cache;
 
+import com.leclowndu93150.structures_tweaker.StructuresTweaker;
 import it.unimi.dsi.fastutil.longs.Long2ObjectMap;
 import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;
 import net.minecraft.core.BlockPos;
@@ -10,12 +11,14 @@ import net.minecraft.world.level.chunk.LevelChunk;
 import net.minecraft.world.level.levelgen.structure.BoundingBox;
 import net.neoforged.neoforge.event.level.ChunkEvent;
 import net.neoforged.bus.api.SubscribeEvent;
+import org.apache.logging.log4j.Logger;
 
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 public class StructureCache {
     private static final int MAX_ENTRIES_PER_DIMENSION = 10000;
+    private static final Logger LOGGER = StructuresTweaker.LOGGER;
     private final Map<String, Long2ObjectMap<ResourceLocation>> structureCache = new ConcurrentHashMap<>();
     private final Map<String, Long2ObjectMap<BoundingBox>> boundingBoxCache = new ConcurrentHashMap<>();
 
@@ -44,9 +47,16 @@ public class StructureCache {
     }
 
     public ResourceLocation getStructureAt(Level level, BlockPos pos) {
+        LOGGER.info("StructureCache: Getting structure at {}", pos);
         String dimensionKey = level.dimension().location().toString();
+        LOGGER.info("StructureCache: Dimension {}", dimensionKey);
         Long2ObjectMap<ResourceLocation> dimCache = structureCache.get(dimensionKey);
-        return dimCache != null ? dimCache.get(getBlockKey(pos)) : null;
+        if (dimCache != null) {
+            LOGGER.info("StructureCache: Found dimension cache with {} entries", dimCache.size());
+            return dimCache.get(getBlockKey(pos));
+        }
+        LOGGER.info("StructureCache: No dimension cache found");
+        return null;
     }
 
     @SubscribeEvent

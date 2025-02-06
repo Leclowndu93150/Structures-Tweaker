@@ -75,6 +75,7 @@ public class StructureConfigManager {
 
     public void loadConfigs() {
         configCache.clear();
+        LOGGER.info("Loading structure configs...");
 
         try {
             Files.walk(CONFIG_DIR)
@@ -87,16 +88,19 @@ public class StructureConfigManager {
                             ResourceLocation id = ResourceLocation.tryParse(structureId);
                             if (id != null) {
                                 StructureConfig config = GSON.fromJson(Files.readString(path), StructureConfig.class);
+                                LOGGER.info("Loaded config for structure {}: canBreak={}, canPlace={}",
+                                        id, config.canBreakBlocks(), config.canPlaceBlocks());
                                 configCache.put(id, config);
                             }
                         } catch (IOException e) {
-                            e.printStackTrace();
+                            LOGGER.error("Error loading config {}: {}", path, e.getMessage());
                         }
                     });
         } catch (IOException e) {
-            e.printStackTrace();
+            LOGGER.error("Error walking config directory: {}", e.getMessage());
         }
         configsLoaded = true;
+        LOGGER.info("Loaded {} structure configs", configCache.size());
     }
 
     public Map<ResourceLocation, StructureConfig> getAllConfigs() {
