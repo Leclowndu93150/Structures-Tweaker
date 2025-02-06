@@ -49,7 +49,7 @@ public class StructuresTweaker {
     @SubscribeEvent
     public void onServerStopped(ServerStoppedEvent event) {
         structureCache.clearCache();
-        StructureBlockData.shutdown();
+        //StructureBlockData.shutdown();
         LOGGER.info("StructuresTweaker cache cleared");
     }
 }

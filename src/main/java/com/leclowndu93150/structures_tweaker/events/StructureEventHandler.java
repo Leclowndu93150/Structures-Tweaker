@@ -1,6 +1,5 @@
 package com.leclowndu93150.structures_tweaker.events;
 
-import com.leclowndu93150.structures_tweaker.StructuresTweaker;
 import com.leclowndu93150.structures_tweaker.cache.StructureCache;
 import com.leclowndu93150.structures_tweaker.config.StructureConfigManager;
 import com.leclowndu93150.structures_tweaker.data.StructureBlockData;
@@ -11,16 +10,16 @@ import net.minecraft.server.TickTask;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.MobCategory;
+import net.minecraft.world.entity.decoration.ItemFrame;
 import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.chunk.LevelChunk;
-import net.minecraft.world.level.levelgen.structure.BoundingBox;
-import net.minecraft.world.level.levelgen.structure.Structure;
-import net.minecraft.world.level.levelgen.structure.StructureStart;
+import net.minecraft.world.level.material.Fluids;
 import net.minecraft.world.level.saveddata.SavedData;
 import net.minecraft.world.level.storage.DimensionDataStorage;
 import net.neoforged.bus.api.SubscribeEvent;
@@ -75,27 +74,14 @@ public class StructureEventHandler {
         );
     }
 
+    //region Event Handlers
     @SubscribeEvent
     public void onBlockBreak(BlockEvent.BreakEvent event) {
         if (!configManager.isReady()) return;
-
         handleStructureEvent(event.getPlayer().level(), event.getPos(), (structure, flags) -> {
-            if (flags.onlyProtectOriginalBlocks()) {
-                ServerLevel level = (ServerLevel) event.getPlayer().level();
-                DimensionDataStorage storage = level.getDataStorage();
-                StructureBlockData blockData = storage.computeIfAbsent(
-                        new SavedData.Factory<>(
-                                StructureBlockData::new,
-                                StructureBlockData::load
-                        ),
-                        "structures_tweaker_blocks"
-                );
-
-                if (blockData.isOriginalBlock(structure, event.getPos())) {
-                    event.setCanceled(true);
-                    return true;
-                }
-                return false;
+            if (checkOriginalBlockProtection(event.getPlayer().level(), event.getPos(), structure, flags)) {
+                event.setCanceled(true);
+                return true;
             }
             if (!flags.canBreakBlocks()) {
                 event.setCanceled(true);
@@ -108,14 +94,13 @@ public class StructureEventHandler {
     @SubscribeEvent
     public void onBlockPlace(BlockEvent.EntityPlaceEvent event) {
         if (event.getLevel().isClientSide() || !configManager.isReady() || event.getEntity() == null) return;
-
         handleStructureEvent(event.getEntity().level(), event.getPos(), (structure, flags) -> {
-            if (event.getPlacedBlock().getBlock() == Blocks.FIRE) {
-                if (!flags.allowFireSpread()) {
-                    event.setCanceled(true);
-                    return true;
-                }
-            } else if (!flags.canPlaceBlocks()) {
+            BlockState placedBlock = event.getPlacedBlock();
+            if (placedBlock.getBlock() == Blocks.FIRE && !flags.allowFireSpread()) {
+                event.setCanceled(true);
+                return true;
+            }
+            if (!flags.canPlaceBlocks()) {
                 event.setCanceled(true);
                 return true;
             }
@@ -124,9 +109,62 @@ public class StructureEventHandler {
     }
 
     @SubscribeEvent
+    public void onFluidSpread(BlockEvent.NeighborNotifyEvent event) {
+        if (event.getLevel().isClientSide() || !configManager.isReady()) return;
+        handleStructureEvent((Level) event.getLevel(), event.getPos(), (structure, flags) -> {
+            if (event.getState().getFluidState().is(Fluids.LAVA) || event.getState().getFluidState().is(Fluids.WATER)) {
+                if (!flags.canPlaceBlocks()) {
+                    event.setCanceled(true);
+                    return true;
+                }
+            }
+            return false;
+        });
+    }
+
+    @SubscribeEvent
+    public void onLeafDecay(BlockEvent.BreakEvent event) {
+        if (!configManager.isReady() || !event.getState().is(Blocks.AZALEA_LEAVES)) return;
+        handleStructureEvent(event.getPlayer().level(), event.getPos(), (structure, flags) -> {
+            if (!flags.canBreakBlocks()) {
+                event.setCanceled(true);
+                return true;
+            }
+            return false;
+        });
+    }
+
+    @SubscribeEvent
+    public void onFarmlandTrample(PlayerInteractEvent.RightClickBlock event) {
+        if (event.getLevel().isClientSide() || !configManager.isReady()) return;
+        if (event.getLevel().getBlockState(event.getPos()).is(Blocks.FARMLAND)) {
+            handleStructureEvent(event.getLevel(), event.getPos(), (structure, flags) -> {
+                if (!flags.canInteract()) {
+                    event.setCanceled(true);
+                    return true;
+                }
+                return false;
+            });
+        }
+    }
+
+    @SubscribeEvent
+    public void onEntityInteract(PlayerInteractEvent.EntityInteract event) {
+        if (event.getLevel().isClientSide() || !configManager.isReady()) return;
+        if (event.getTarget() instanceof ItemFrame) {
+            handleStructureEvent(event.getLevel(), event.getTarget().blockPosition(), (structure, flags) -> {
+                if (!flags.canInteract()) {
+                    event.setCanceled(true);
+                    return true;
+                }
+                return false;
+            });
+        }
+    }
+
+    @SubscribeEvent
     public void onPlayerInteract(PlayerInteractEvent.RightClickBlock event) {
         if (event.getLevel().isClientSide() || !configManager.isReady()) return;
-
         handleStructureEvent(event.getLevel(), event.getPos(), (structure, flags) -> {
             if (!flags.canInteract()) {
                 event.setCanceled(true);
@@ -139,11 +177,9 @@ public class StructureEventHandler {
     @SubscribeEvent
     public void onExplosion(ExplosionEvent.Start event) {
         if (event.getLevel().isClientSide() || !configManager.isReady()) return;
-
         Entity source = event.getExplosion().getDirectSourceEntity();
         BlockPos pos = source != null ? source.blockPosition() :
-                new BlockPos((int)event.getExplosion().x, (int)event.getExplosion().y, (int)event.getExplosion().z);
-
+                BlockPos.containing(event.getExplosion().x, event.getExplosion().y, event.getExplosion().z);
         handleStructureEvent(event.getLevel(), pos, (structure, flags) -> {
             if (!flags.allowExplosions()) {
                 event.setCanceled(true);
@@ -156,7 +192,6 @@ public class StructureEventHandler {
     @SubscribeEvent
     public void onMobSpawn(FinalizeSpawnEvent event) {
         if (event.getLevel().isClientSide() || !configManager.isReady()) return;
-
         handleStructureEvent(event.getLevel().getLevel(), event.getEntity().blockPosition(),
                 (structure, flags) -> {
                     if (event.getEntity().getType().getCategory() == MobCategory.CREATURE
@@ -171,7 +206,6 @@ public class StructureEventHandler {
     @SubscribeEvent
     public void onPlayerPvP(AttackEntityEvent event) {
         if (event.getEntity().level().isClientSide() || !configManager.isReady()) return;
-
         if (event.getTarget() instanceof Player) {
             handleStructureEvent(event.getEntity().level(), event.getEntity().blockPosition(),
                     (structure, flags) -> {
@@ -187,7 +221,6 @@ public class StructureEventHandler {
     @SubscribeEvent
     public void onItemPickup(ItemEntityPickupEvent.Pre event) {
         if (!configManager.isReady()) return;
-
         ItemEntity item = event.getItemEntity();
         handleStructureEvent(item.level(), item.blockPosition(), (structure, flags) -> {
             if (!flags.allowItemPickup() || isProtectedItem(item)) {
@@ -212,23 +245,7 @@ public class StructureEventHandler {
         chunk.getAllStarts().forEach((structure, start) -> {
             ResourceLocation id = registry.getKey(structure);
             if (id != null && start != null && start.getBoundingBox() != null) {
-                BlockPos center = start.getBoundingBox().getCenter();
-
-                if (structureCache.getStructureAt(serverLevel, center) == null) {
-                    serverLevel.getServer().tell(new TickTask(0, () -> {
-                        DimensionDataStorage storage = serverLevel.getDataStorage();
-                        StructureBlockData blockData = storage.computeIfAbsent(
-                                new SavedData.Factory<>(
-                                        StructureBlockData::new,
-                                        StructureBlockData::load
-                                ),
-                                "structures_tweaker_blocks"
-                        );
-
-                        blockData.registerStructure(id, serverLevel, start.getBoundingBox())
-                                .thenRun(() -> structureCache.cacheStructure(serverLevel, center, id, start.getBoundingBox()));
-                    }));
-                }
+                structureCache.cacheStructure(serverLevel, id, start.getBoundingBox());
             }
         });
     }
@@ -254,6 +271,23 @@ public class StructureEventHandler {
         structureCache.clearCache();
         structureFlags.clear();
     }
+    //endregion
+
+    //region Helper Methods
+    private boolean checkOriginalBlockProtection(Level level, BlockPos pos, ResourceLocation structure, StructureEventFlags flags) {
+        if (!flags.onlyProtectOriginalBlocks()) return false;
+        if (!(level instanceof ServerLevel serverLevel)) return false;
+
+        DimensionDataStorage storage = serverLevel.getDataStorage();
+        StructureBlockData blockData = storage.computeIfAbsent(
+                new SavedData.Factory<>(
+                        StructureBlockData::new,
+                        StructureBlockData::load
+                ),
+                "structures_tweaker_blocks"
+        );
+        return blockData.isOriginalBlock(structure, pos);
+    }
 
     private boolean isProtectedItem(ItemEntity item) {
         return item.getItem().getItem() instanceof BlockItem blockItem &&
@@ -268,7 +302,6 @@ public class StructureEventHandler {
 
     private void handleStructureEvent(Level level, BlockPos pos,
                                       BiPredicate<ResourceLocation, StructureEventFlags> callback) {
-
         ResourceLocation structure = structureCache.getStructureAt(level, pos);
         if (structure != null) {
             StructureEventFlags flags = structureFlags.get(structure);
@@ -277,6 +310,7 @@ public class StructureEventHandler {
             }
         }
     }
+    //endregion
 
     private record StructureEventFlags(
             boolean canBreakBlocks,
