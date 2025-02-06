@@ -89,36 +89,27 @@ public class StructureEventHandler {
 
     @SubscribeEvent
     public void onBlockBreak(BlockEvent.BreakEvent event) {
-        LOGGER.info("Block break event fired at {}", event.getPos());
         if (!configManager.isReady() || !(event.getLevel() instanceof ServerLevel serverLevel)) {
-            LOGGER.info("Early return: configReady={}, isServerLevel={}",
-                    configManager.isReady(), event.getLevel() instanceof ServerLevel);
             return;
         }
 
         handleStructureEvent(event.getPlayer().level(), event.getPos(), (structure, flags) -> {
-            LOGGER.info("Structure check for break event: structure={}, canBreak={}",
-                    structure, flags.canBreakBlocks());
 
             StructureBlocksData blockData = StructureBlocksData.get(serverLevel);
 
             if (flags.onlyProtectOriginalBlocks()) {
                 if (blockData.isPlayerPlaced(event.getPos())) {
-                    LOGGER.info("Block is player placed, allowing break");
                     blockData.removePlayerBlock(event.getPos());
                     return false;
                 }
-                LOGGER.info("Block is original, preventing break");
                 event.setCanceled(true);
                 return true;
             }
 
             if (!flags.canBreakBlocks()) {
-                LOGGER.info("Breaking not allowed in structure");
                 event.setCanceled(true);
                 return true;
             }
-            LOGGER.info("Break allowed");
             return false;
         });
     }
@@ -256,8 +247,6 @@ public class StructureEventHandler {
             return;
         }
 
-        LOGGER.info("Checking structures at {}", pos);
-
         // Check all registered structures
         var registry = level.registryAccess().registryOrThrow(Registries.STRUCTURE);
         for (Structure structure : registry) {
@@ -267,7 +256,6 @@ public class StructureEventHandler {
             // Check if the position is within this structure
             if (serverLevel.structureManager().getStructureAt(pos, structure).isValid()) {
                 id = normalizeStructureId(id);
-                LOGGER.info("Found structure: {}", id);
 
                 // Get the structure's bounds
                 var reference = serverLevel.structureManager().getStructureAt(pos, structure);

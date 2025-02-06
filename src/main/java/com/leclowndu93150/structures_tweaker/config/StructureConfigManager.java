@@ -88,8 +88,6 @@ public class StructureConfigManager {
                             ResourceLocation id = ResourceLocation.tryParse(structureId);
                             if (id != null) {
                                 StructureConfig config = GSON.fromJson(Files.readString(path), StructureConfig.class);
-                                LOGGER.info("Loaded config for structure {}: canBreak={}, canPlace={}",
-                                        id, config.canBreakBlocks(), config.canPlaceBlocks());
                                 configCache.put(id, config);
                             }
                         } catch (IOException e) {

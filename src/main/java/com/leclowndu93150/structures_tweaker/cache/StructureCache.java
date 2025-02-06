@@ -1,6 +1,5 @@
 package com.leclowndu93150.structures_tweaker.cache;
 
-import com.leclowndu93150.structures_tweaker.StructuresTweaker;
 import it.unimi.dsi.fastutil.longs.Long2ObjectMap;
 import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;
 import net.minecraft.core.BlockPos;
@@ -11,74 +10,87 @@ import net.minecraft.world.level.chunk.LevelChunk;
 import net.minecraft.world.level.levelgen.structure.BoundingBox;
 import net.neoforged.neoforge.event.level.ChunkEvent;
 import net.neoforged.bus.api.SubscribeEvent;
-import org.apache.logging.log4j.Logger;
 
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 public class StructureCache {
-    private static final int MAX_ENTRIES_PER_DIMENSION = 10000;
-    private static final Logger LOGGER = StructuresTweaker.LOGGER;
-    private final Map<String, Long2ObjectMap<ResourceLocation>> structureCache = new ConcurrentHashMap<>();
-    private final Map<String, Long2ObjectMap<BoundingBox>> boundingBoxCache = new ConcurrentHashMap<>();
+    private static final int MAX_ENTRIES_PER_DIMENSION = 1000;
+    private final Map<String, StructureBoundCache> dimensionCaches = new ConcurrentHashMap<>();
 
-    private long getBlockKey(BlockPos pos) {
-        return pos.asLong();
-    }
-
-    private long getChunkKey(ChunkPos pos) {
-        return pos.toLong();
+    private static class StructureBoundCache {
+        final Long2ObjectMap<ResourceLocation> structures = new Long2ObjectOpenHashMap<>();
+        final Long2ObjectMap<BoundingBox> bounds = new Long2ObjectOpenHashMap<>();
     }
 
     public void cacheStructure(Level level, BlockPos pos, ResourceLocation structure, BoundingBox bounds) {
         String dimensionKey = level.dimension().location().toString();
-        Long2ObjectMap<ResourceLocation> structureDimCache = structureCache.computeIfAbsent(
-                dimensionKey, k -> new Long2ObjectOpenHashMap<>());
-        Long2ObjectMap<BoundingBox> boundsDimCache = boundingBoxCache.computeIfAbsent(
-                dimensionKey, k -> new Long2ObjectOpenHashMap<>());
+        StructureBoundCache cache = dimensionCaches.computeIfAbsent(dimensionKey, k -> new StructureBoundCache());
 
-        if (structureDimCache.size() >= MAX_ENTRIES_PER_DIMENSION) {
-            structureDimCache.clear();
-            boundsDimCache.clear();
+        if (cache.structures.size() >= MAX_ENTRIES_PER_DIMENSION) {
+            cache.structures.clear();
+            cache.bounds.clear();
         }
 
-        structureDimCache.put(getBlockKey(pos), structure);
-        boundsDimCache.put(getChunkKey(new ChunkPos(pos)), bounds);
+        // Cache the reference point and bounds
+        ChunkPos chunkPos = new ChunkPos(pos);
+        cache.structures.put(chunkPos.toLong(), structure);
+        cache.bounds.put(chunkPos.toLong(), bounds);
+
+        // Cache all chunks that this structure covers
+        int minChunkX = bounds.minX() >> 4;
+        int maxChunkX = bounds.maxX() >> 4;
+        int minChunkZ = bounds.minZ() >> 4;
+        int maxChunkZ = bounds.maxZ() >> 4;
+
+        for (int x = minChunkX; x <= maxChunkX; x++) {
+            for (int z = minChunkZ; z <= maxChunkZ; z++) {
+                long chunkKey = ChunkPos.asLong(x, z);
+                cache.structures.put(chunkKey, structure);
+                cache.bounds.put(chunkKey, bounds);
+            }
+        }
     }
 
     public ResourceLocation getStructureAt(Level level, BlockPos pos) {
-        LOGGER.info("StructureCache: Getting structure at {}", pos);
         String dimensionKey = level.dimension().location().toString();
-        LOGGER.info("StructureCache: Dimension {}", dimensionKey);
-        Long2ObjectMap<ResourceLocation> dimCache = structureCache.get(dimensionKey);
-        if (dimCache != null) {
-            LOGGER.info("StructureCache: Found dimension cache with {} entries", dimCache.size());
-            return dimCache.get(getBlockKey(pos));
+        StructureBoundCache cache = dimensionCaches.get(dimensionKey);
+        if (cache == null) return null;
+
+        ChunkPos chunkPos = new ChunkPos(pos);
+        long chunkKey = chunkPos.toLong();
+
+        ResourceLocation structure = cache.structures.get(chunkKey);
+        if (structure == null) return null;
+
+        BoundingBox bounds = cache.bounds.get(chunkKey);
+        if (bounds == null) return null;
+
+        // Verify the position is actually inside the structure bounds
+        if (bounds.isInside(pos)) {
+            return structure;
+        } else {
+            // Remove invalid cache entry
+            cache.structures.remove(chunkKey);
+            cache.bounds.remove(chunkKey);
+            return null;
         }
-        LOGGER.info("StructureCache: No dimension cache found");
-        return null;
     }
 
     @SubscribeEvent
     public void onChunkUnload(ChunkEvent.Unload event) {
         if (event.getChunk() instanceof LevelChunk chunk) {
             String dimensionKey = chunk.getLevel().dimension().location().toString();
-            Long2ObjectMap<ResourceLocation> structureDimCache = structureCache.get(dimensionKey);
-            Long2ObjectMap<BoundingBox> boundsDimCache = boundingBoxCache.get(dimensionKey);
-
-            if (structureDimCache != null && boundsDimCache != null) {
-                ChunkPos chunkPos = chunk.getPos();
-                long chunkKey = getChunkKey(chunkPos);
-
-                structureDimCache.keySet().removeIf(blockPosLong ->
-                        new ChunkPos(BlockPos.of(blockPosLong)).toLong() == chunkKey);
-                boundsDimCache.remove(chunkKey);
+            StructureBoundCache cache = dimensionCaches.get(dimensionKey);
+            if (cache != null) {
+                long chunkKey = chunk.getPos().toLong();
+                cache.structures.remove(chunkKey);
+                cache.bounds.remove(chunkKey);
             }
         }
     }
 
     public void clearCache() {
-        structureCache.clear();
-        boundingBoxCache.clear();
+        dimensionCaches.clear();
     }
 }
