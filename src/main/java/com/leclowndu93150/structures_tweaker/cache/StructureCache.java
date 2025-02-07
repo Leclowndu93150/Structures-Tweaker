@@ -21,6 +21,7 @@ public class StructureCache {
     private static class StructureBoundCache {
         final Long2ObjectMap<ResourceLocation> structures = new Long2ObjectOpenHashMap<>();
         final Long2ObjectMap<BoundingBox> bounds = new Long2ObjectOpenHashMap<>();
+        final Map<ResourceLocation, BoundingBox[]> structureBounds = new ConcurrentHashMap<>();
     }
 
     public void cacheStructure(Level level, BlockPos pos, ResourceLocation structure, BoundingBox bounds) {
@@ -30,12 +31,24 @@ public class StructureCache {
         if (cache.structures.size() >= MAX_ENTRIES_PER_DIMENSION) {
             cache.structures.clear();
             cache.bounds.clear();
+            cache.structureBounds.clear();
         }
 
         // Cache the reference point and bounds
         ChunkPos chunkPos = new ChunkPos(pos);
         cache.structures.put(chunkPos.toLong(), structure);
         cache.bounds.put(chunkPos.toLong(), bounds);
+
+        // Add to structure-specific bounds cache
+        cache.structureBounds.compute(structure, (k, v) -> {
+            if (v == null) {
+                return new BoundingBox[]{bounds};
+            }
+            BoundingBox[] newArray = new BoundingBox[v.length + 1];
+            System.arraycopy(v, 0, newArray, 0, v.length);
+            newArray[v.length] = bounds;
+            return newArray;
+        });
 
         // Cache all chunks that this structure covers
         int minChunkX = bounds.minX() >> 4;
@@ -66,7 +79,6 @@ public class StructureCache {
         BoundingBox bounds = cache.bounds.get(chunkKey);
         if (bounds == null) return null;
 
-        // Verify the position is actually inside the structure bounds
         if (bounds.isInside(pos)) {
             return structure;
         } else {
@@ -77,6 +89,22 @@ public class StructureCache {
         }
     }
 
+    public boolean isInStructure(Level level, BlockPos pos, ResourceLocation structure) {
+        String dimensionKey = level.dimension().location().toString();
+        StructureBoundCache cache = dimensionCaches.get(dimensionKey);
+        if (cache == null) return false;
+
+        BoundingBox[] bounds = cache.structureBounds.get(structure);
+        if (bounds == null) return false;
+
+        for (BoundingBox box : bounds) {
+            if (box.isInside(pos)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     @SubscribeEvent
     public void onChunkUnload(ChunkEvent.Unload event) {
         if (event.getChunk() instanceof LevelChunk chunk) {
@@ -84,10 +112,28 @@ public class StructureCache {
             StructureBoundCache cache = dimensionCaches.get(dimensionKey);
             if (cache != null) {
                 long chunkKey = chunk.getPos().toLong();
-                cache.structures.remove(chunkKey);
-                cache.bounds.remove(chunkKey);
+                ResourceLocation structure = cache.structures.remove(chunkKey);
+                BoundingBox bounds = cache.bounds.remove(chunkKey);
+
+                if (structure != null && bounds != null) {
+                    cache.structureBounds.computeIfPresent(structure, (k, v) -> {
+                        if (v.length == 1) return null;
+                        return removeFromArray(v, bounds);
+                    });
+                }
             }
         }
+    }
+
+    private BoundingBox[] removeFromArray(BoundingBox[] array, BoundingBox toRemove) {
+        BoundingBox[] newArray = new BoundingBox[array.length - 1];
+        int newIndex = 0;
+        for (BoundingBox box : array) {
+            if (!box.equals(toRemove)) {
+                newArray[newIndex++] = box;
+            }
+        }
+        return newArray;
     }
 
     public void clearCache() {

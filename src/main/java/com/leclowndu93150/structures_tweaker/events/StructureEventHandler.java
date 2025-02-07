@@ -1,13 +1,9 @@
 package com.leclowndu93150.structures_tweaker.events;
 
-import com.google.common.cache.CacheBuilder;
-import com.google.common.cache.CacheLoader;
-import com.google.common.cache.LoadingCache;
 import com.leclowndu93150.structures_tweaker.StructuresTweaker;
 import com.leclowndu93150.structures_tweaker.cache.StructureCache;
 import com.leclowndu93150.structures_tweaker.config.StructureConfigManager;
 import com.leclowndu93150.structures_tweaker.data.StructureBlocksData;
-import it.unimi.dsi.fastutil.longs.Long2ObjectMap;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.resources.ResourceLocation;
@@ -20,9 +16,7 @@ import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
-import net.minecraft.world.level.chunk.LevelChunk;
 import net.minecraft.world.level.levelgen.structure.Structure;
-import net.minecraft.world.level.levelgen.structure.StructureStart;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.neoforge.common.util.TriState;
 import net.neoforged.neoforge.event.entity.living.FinalizeSpawnEvent;
@@ -32,14 +26,11 @@ import net.neoforged.neoforge.event.entity.player.PlayerInteractEvent;
 import net.neoforged.neoforge.event.level.BlockEvent;
 import net.neoforged.neoforge.event.level.ExplosionEvent;
 import net.neoforged.neoforge.event.server.ServerStoppedEvent;
-import org.apache.commons.lang3.tuple.Triple;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.jetbrains.annotations.NotNull;
 
 import java.util.Map;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.*;
 import java.util.function.BiPredicate;
@@ -254,11 +245,11 @@ public class StructureEventHandler {
             if (id == null) continue;
 
             // Check if the position is within this structure
-            if (serverLevel.structureManager().getStructureAt(pos, structure).isValid()) {
+            var reference = serverLevel.structureManager().getStructureAt(pos, structure);
+            if (reference.isValid()) {
                 id = normalizeStructureId(id);
 
-                // Get the structure's bounds
-                var reference = serverLevel.structureManager().getStructureAt(pos, structure);
+                // Cache the structure's bounds for future checks
                 structureCache.cacheStructure(level, pos, id, reference.getBoundingBox());
 
                 StructureEventFlags flags = structureFlags.get(id);
