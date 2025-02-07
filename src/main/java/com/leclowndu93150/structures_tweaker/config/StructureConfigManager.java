@@ -10,6 +10,8 @@ import net.neoforged.fml.ModContainer;
 import net.neoforged.fml.ModList;
 import net.neoforged.neoforge.event.server.ServerStartedEvent;
 import net.neoforged.neoforge.server.ServerLifecycleHooks;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import java.io.FileWriter;
 import java.io.IOException;
@@ -28,7 +30,7 @@ public class StructureConfigManager {
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
     private volatile boolean configsLoaded = false;
 
-    private static final org.apache.logging.log4j.Logger LOGGER = org.apache.logging.log4j.LogManager.getLogger();
+    private static final Logger LOGGER = LogManager.getLogger();
 
     public void generateConfigs() {
         MinecraftServer server = ServerLifecycleHooks.getCurrentServer();
@@ -44,30 +46,13 @@ public class StructureConfigManager {
                                 Files.writeString(configPath, GSON.toJson(new StructureConfig()));
                             }
                         } catch (IOException e) {
-                            e.printStackTrace();
+                            LOGGER.error("Failed to generate config for {}: {}", id, e.getMessage());
                         }
                     }
                 });
             });
         }
     }
-
-    private StructureConfig loadModDefault(ResourceLocation id) {
-        String path = "data/" + id.getNamespace() + "/structure_tweaker/" + id.getPath() + ".json";
-
-        var optional = ModList.get().getModContainerById(id.getNamespace());
-        if (optional.isPresent()) {
-            try (InputStream is = optional.get().getModInfo().getClass().getClassLoader().getResourceAsStream(path)) {
-                if (is != null) {
-                    return GSON.fromJson(new InputStreamReader(is), StructureConfig.class);
-                }
-            } catch (IOException e) {
-                e.printStackTrace();
-            }
-        }
-        return new StructureConfig();
-    }
-
 
     public boolean isReady() {
         return configsLoaded;
@@ -87,7 +72,8 @@ public class StructureConfigManager {
                             String structureId = relativePath.substring(0, relativePath.length() - 5);
                             ResourceLocation id = ResourceLocation.tryParse(structureId);
                             if (id != null) {
-                                StructureConfig config = GSON.fromJson(Files.readString(path), StructureConfig.class);
+                                String content = Files.readString(path);
+                                StructureConfig config = GSON.fromJson(content, StructureConfig.class);
                                 configCache.put(id, config);
                             }
                         } catch (IOException e) {
@@ -103,13 +89,5 @@ public class StructureConfigManager {
 
     public Map<ResourceLocation, StructureConfig> getAllConfigs() {
         return configCache;
-    }
-
-    @Override
-    public String toString() {
-        return "StructureConfigManager{" +
-                "configCache=" + configCache +
-                ", configsLoaded=" + configsLoaded +
-                '}';
     }
 }

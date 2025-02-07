@@ -82,12 +82,16 @@ public class StructureEventHandler {
 
     @SubscribeEvent
     public void onBlockBreak(BlockEvent.BreakEvent event) {
-        if (!configManager.isReady() || !(event.getLevel() instanceof ServerLevel serverLevel)) {
+
+        if (!configManager.isReady()) {
+            return;
+        }
+
+        if (!(event.getLevel() instanceof ServerLevel serverLevel)) {
             return;
         }
 
         handleStructureEvent(event.getPlayer().level(), event.getPos(), (structure, flags) -> {
-
             StructureBlocksData blockData = StructureBlocksData.get(serverLevel);
 
             if (flags.onlyProtectOriginalBlocks()) {
@@ -103,6 +107,7 @@ public class StructureEventHandler {
                 event.setCanceled(true);
                 return true;
             }
+
             return false;
         });
     }
@@ -226,10 +231,6 @@ public class StructureEventHandler {
         }
 
         if (!(level instanceof ServerLevel serverLevel)) {
-            return;
-        }
-
-        if (EmptyChunksData.get(serverLevel).isEmpty(new ChunkPos(pos))) {
             return;
         }
 

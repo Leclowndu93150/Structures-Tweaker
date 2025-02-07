@@ -3,6 +3,7 @@ package com.leclowndu93150.structures_tweaker;
 import com.leclowndu93150.structures_tweaker.cache.StructureCache;
 import com.leclowndu93150.structures_tweaker.command.ShowStructureCommand;
 import com.leclowndu93150.structures_tweaker.config.StructureConfigManager;
+import com.leclowndu93150.structures_tweaker.data.EmptyChunksData;
 import com.leclowndu93150.structures_tweaker.events.StructureEventHandler;
 import com.leclowndu93150.structures_tweaker.render.StructureBoxRenderer;
 import net.neoforged.bus.api.IEventBus;
@@ -33,6 +34,7 @@ public class StructuresTweaker {
         NeoForge.EVENT_BUS.register(this.structureEventHandler);
         NeoForge.EVENT_BUS.register(StructureBoxRenderer.class);
         NeoForge.EVENT_BUS.register(ShowStructureCommand.class);
+        NeoForge.EVENT_BUS.register(EmptyChunksData.class);
     }
 
     @SubscribeEvent

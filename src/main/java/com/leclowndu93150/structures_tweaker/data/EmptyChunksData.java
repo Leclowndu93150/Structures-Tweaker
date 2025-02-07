@@ -8,6 +8,8 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.saveddata.SavedData;
 import net.minecraft.world.level.storage.DimensionDataStorage;
+import net.neoforged.bus.api.SubscribeEvent;
+import net.neoforged.neoforge.event.server.ServerStartedEvent;
 
 import java.util.HashSet;
 import java.util.Set;
@@ -58,5 +60,12 @@ public class EmptyChunksData extends SavedData {
     public void clear() {
         emptyChunks.clear();
         setDirty();
+    }
+
+    @SubscribeEvent
+    public static void onServerStarted(ServerStartedEvent event) {
+        event.getServer().getAllLevels().forEach(level ->
+                EmptyChunksData.get(level).clear()
+        );
     }
 }
