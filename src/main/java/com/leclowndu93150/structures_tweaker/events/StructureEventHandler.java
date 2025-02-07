@@ -82,7 +82,6 @@ public class StructureEventHandler {
 
     @SubscribeEvent
     public void onBlockBreak(BlockEvent.BreakEvent event) {
-
         if (!configManager.isReady()) {
             return;
         }
@@ -92,6 +91,7 @@ public class StructureEventHandler {
         }
 
         handleStructureEvent(event.getPlayer().level(), event.getPos(), (structure, flags) -> {
+
             StructureBlocksData blockData = StructureBlocksData.get(serverLevel);
 
             if (flags.onlyProtectOriginalBlocks()) {
@@ -222,17 +222,9 @@ public class StructureEventHandler {
     }
 
     private void handleStructureEvent(Level level, BlockPos pos, BiPredicate<ResourceLocation, StructureEventFlags> callback) {
-        if (Thread.currentThread().getName().contains("worldgen")) {
-            return;
-        }
-
-        if (!configManager.isReady() || !level.hasChunkAt(pos)) {
-            return;
-        }
-
-        if (!(level instanceof ServerLevel serverLevel)) {
-            return;
-        }
+        if (Thread.currentThread().getName().contains("worldgen")) return;
+        if (!configManager.isReady() || !level.hasChunkAt(pos)) return;
+        if (!(level instanceof ServerLevel serverLevel)) return;
 
         ResourceLocation cached = structureCache.getStructureAt(level, pos);
         if (cached != null) {
@@ -271,9 +263,12 @@ public class StructureEventHandler {
     }
 
     private ResourceLocation normalizeStructureId(ResourceLocation id) {
-        return ResourceLocation.tryParse(id.toString()
-                .replace("minecraft:minecraft/", "minecraft:")
-                .replace("minecraft/minecraft:", "minecraft:"));
+        String namespace = id.getNamespace();
+        String path = id.getPath();
+        if (path.startsWith(namespace + "/")) {
+            path = path.substring(namespace.length() + 1);
+        }
+        return ResourceLocation.fromNamespaceAndPath(namespace, path);
     }
 
     private boolean isProtectedItem(ItemEntity item) {

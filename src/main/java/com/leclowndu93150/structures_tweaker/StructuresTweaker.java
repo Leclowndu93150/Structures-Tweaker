@@ -43,6 +43,7 @@ public class StructuresTweaker {
         configManager.generateConfigs();
         configManager.loadConfigs();
         structureEventHandler.reloadFlags();
+
     }
 
     @SubscribeEvent

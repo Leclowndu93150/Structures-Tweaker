@@ -40,10 +40,15 @@ public class StructureConfigManager {
                     ResourceLocation id = registry.getKey(structure);
                     if (id != null) {
                         Path configPath = CONFIG_DIR.resolve(id.getNamespace() + "/" + id.getPath() + ".json");
+
                         try {
-                            Files.createDirectories(configPath.getParent());
+                            Path parent = configPath.getParent();
+                            Files.createDirectories(parent);
+
                             if (!Files.exists(configPath)) {
-                                Files.writeString(configPath, GSON.toJson(new StructureConfig()));
+                                String json = GSON.toJson(new StructureConfig());
+                                Files.writeString(configPath, json);
+                            } else {
                             }
                         } catch (IOException e) {
                             LOGGER.error("Failed to generate config for {}: {}", id, e.getMessage());
@@ -51,16 +56,14 @@ public class StructureConfigManager {
                     }
                 });
             });
+        } else {
+            LOGGER.error("Server instance is null during config generation!");
         }
-    }
-
-    public boolean isReady() {
-        return configsLoaded;
     }
 
     public void loadConfigs() {
         configCache.clear();
-        LOGGER.info("Loading structure configs...");
+        configsLoaded = false;
 
         try {
             Files.walk(CONFIG_DIR)
@@ -69,13 +72,14 @@ public class StructureConfigManager {
                     .forEach(path -> {
                         try {
                             String relativePath = CONFIG_DIR.relativize(path).toString().replace('\\', '/');
-                            String structureId = relativePath.substring(0, relativePath.length() - 5);
-                            ResourceLocation id = ResourceLocation.tryParse(structureId);
-                            if (id != null) {
-                                String content = Files.readString(path);
-                                StructureConfig config = GSON.fromJson(content, StructureConfig.class);
-                                configCache.put(id, config);
-                            }
+                            String[] parts = relativePath.substring(0, relativePath.length() - 5).split("/", 2);
+
+                            // Parts[0] is namespace, parts[1] is path
+                            ResourceLocation id = ResourceLocation.fromNamespaceAndPath(parts[0], parts[1]);
+
+                            String content = Files.readString(path);
+                            StructureConfig config = GSON.fromJson(content, StructureConfig.class);
+                            configCache.put(id, config);
                         } catch (IOException e) {
                             LOGGER.error("Error loading config {}: {}", path, e.getMessage());
                         }
@@ -83,8 +87,19 @@ public class StructureConfigManager {
         } catch (IOException e) {
             LOGGER.error("Error walking config directory: {}", e.getMessage());
         }
+
         configsLoaded = true;
-        LOGGER.info("Loaded {} structure configs", configCache.size());
+    }
+
+    public boolean isReady() {
+        return configsLoaded;
+    }
+
+    public StructureConfig getConfig(ResourceLocation id) {
+        if (!configsLoaded) {
+            loadConfigs();
+        }
+        return configCache.get(id);
     }
 
     public Map<ResourceLocation, StructureConfig> getAllConfigs() {
