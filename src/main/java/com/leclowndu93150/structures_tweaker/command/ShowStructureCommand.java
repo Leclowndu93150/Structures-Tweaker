@@ -1,5 +1,6 @@
 package com.leclowndu93150.structures_tweaker.command;
 
+import com.leclowndu93150.structures_tweaker.data.DefeatedStructuresData;
 import com.leclowndu93150.structures_tweaker.data.EmptyChunksData;
 import com.leclowndu93150.structures_tweaker.render.StructureBoxRenderer;
 import com.mojang.brigadier.CommandDispatcher;
@@ -43,8 +44,36 @@ public class ShowStructureCommand {
                                     context.getSource().sendSuccess(() -> Component.literal("Structure display disabled"), false);
                                     return 1;
                                 }))
+                        .executes(context -> checkStructures(context.getSource())))
+                .then(Commands.literal("defeat")
+                        .requires(source -> source.hasPermission(2))
                         .executes(context -> {
-                            return checkStructures(context.getSource());
+                            ServerLevel level = context.getSource().getLevel();
+                            BlockPos pos = BlockPos.containing(context.getSource().getPosition());
+                            boolean found = false;
+
+                            var registry = level.registryAccess().registryOrThrow(Registries.STRUCTURE);
+                            for (var structure : registry) {
+                                ResourceLocation id = registry.getKey(structure);
+                                if (id == null) continue;
+
+                                var reference = level.structureManager().getStructureAt(pos, structure);
+                                if (reference.isValid()) {
+                                    DefeatedStructuresData data = DefeatedStructuresData.get(level);
+                                    data.markDefeated(id, reference.getBoundingBox());
+                                    context.getSource().sendSuccess(() ->
+                                            Component.literal("Structure " + id + " marked as defeated!"), true);
+                                    found = true;
+                                    break;
+                                }
+                            }
+
+                            if (!found) {
+                                context.getSource().sendFailure(
+                                        Component.literal("No structure found at your position"));
+                            }
+
+                            return 1;
                         })));
     }
 

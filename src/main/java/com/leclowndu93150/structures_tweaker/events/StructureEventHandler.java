@@ -3,6 +3,7 @@ package com.leclowndu93150.structures_tweaker.events;
 import com.leclowndu93150.structures_tweaker.StructuresTweaker;
 import com.leclowndu93150.structures_tweaker.cache.StructureCache;
 import com.leclowndu93150.structures_tweaker.config.StructureConfigManager;
+import com.leclowndu93150.structures_tweaker.data.DefeatedStructuresData;
 import com.leclowndu93150.structures_tweaker.data.EmptyChunksData;
 import com.leclowndu93150.structures_tweaker.data.StructureBlocksData;
 import net.minecraft.core.BlockPos;
@@ -230,6 +231,20 @@ public class StructureEventHandler {
         if (cached != null) {
             StructureEventFlags flags = structureFlags.get(cached);
             if (flags != null) {
+                var registry = level.registryAccess().registryOrThrow(Registries.STRUCTURE);
+                for (var structure : registry) {
+                    ResourceLocation id = registry.getKey(structure);
+                    if (id != null && id.equals(cached)) {
+                        var reference = serverLevel.structureManager().getStructureAt(pos, structure);
+                        if (reference.isValid()) {
+                            DefeatedStructuresData data = DefeatedStructuresData.get(serverLevel);
+                            if (data.isDefeated(id, reference.getBoundingBox())) {
+                                return;
+                            }
+                        }
+                        break;
+                    }
+                }
                 callback.test(cached, flags);
             }
             return;
