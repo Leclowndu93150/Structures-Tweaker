@@ -3,6 +3,7 @@ package com.leclowndu93150.structures_tweaker.events;
 import com.leclowndu93150.structures_tweaker.StructuresTweaker;
 import com.leclowndu93150.structures_tweaker.cache.StructureCache;
 import com.leclowndu93150.structures_tweaker.config.StructureConfigManager;
+import com.leclowndu93150.structures_tweaker.data.EmptyChunksData;
 import com.leclowndu93150.structures_tweaker.data.StructureBlocksData;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.Registries;
@@ -13,6 +14,7 @@ import net.minecraft.world.entity.MobCategory;
 import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.BlockItem;
+import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
@@ -223,7 +225,14 @@ public class StructureEventHandler {
             return;
         }
 
-        // First check cache
+        if (!(level instanceof ServerLevel serverLevel)) {
+            return;
+        }
+
+        if (EmptyChunksData.get(serverLevel).isEmpty(new ChunkPos(pos))) {
+            return;
+        }
+
         ResourceLocation cached = structureCache.getStructureAt(level, pos);
         if (cached != null) {
             StructureEventFlags flags = structureFlags.get(cached);
@@ -233,31 +242,30 @@ public class StructureEventHandler {
             return;
         }
 
-        // Get server level for structure access
-        if (!(level instanceof ServerLevel serverLevel)) {
-            return;
-        }
-
-        // Check all registered structures
         var registry = level.registryAccess().registryOrThrow(Registries.STRUCTURE);
+        boolean foundStructure = false;
+
         for (Structure structure : registry) {
             ResourceLocation id = registry.getKey(structure);
             if (id == null) continue;
 
-            // Check if the position is within this structure
             var reference = serverLevel.structureManager().getStructureAt(pos, structure);
             if (reference.isValid()) {
+                foundStructure = true;
                 id = normalizeStructureId(id);
 
-                // Cache the structure's bounds for future checks
                 structureCache.cacheStructure(level, pos, id, reference.getBoundingBox());
 
                 StructureEventFlags flags = structureFlags.get(id);
                 if (flags != null) {
                     callback.test(id, flags);
                 }
-                return;
+                break;
             }
+        }
+
+        if (!foundStructure) {
+            EmptyChunksData.get(serverLevel).markEmpty(new ChunkPos(pos));
         }
     }
 

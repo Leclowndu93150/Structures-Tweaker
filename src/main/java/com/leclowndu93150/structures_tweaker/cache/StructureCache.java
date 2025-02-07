@@ -1,9 +1,12 @@
 package com.leclowndu93150.structures_tweaker.cache;
 
+import it.unimi.dsi.fastutil.longs.Long2BooleanMap;
+import it.unimi.dsi.fastutil.longs.Long2BooleanOpenHashMap;
 import it.unimi.dsi.fastutil.longs.Long2ObjectMap;
 import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;
 import net.minecraft.core.BlockPos;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.chunk.LevelChunk;
@@ -18,11 +21,12 @@ public class StructureCache {
     private static final int MAX_ENTRIES_PER_DIMENSION = 1000;
     private final Map<String, StructureBoundCache> dimensionCaches = new ConcurrentHashMap<>();
 
-    private static class StructureBoundCache {
-        final Long2ObjectMap<ResourceLocation> structures = new Long2ObjectOpenHashMap<>();
-        final Long2ObjectMap<BoundingBox> bounds = new Long2ObjectOpenHashMap<>();
+    public static class StructureBoundCache {
+        public final Long2ObjectMap<ResourceLocation> structures = new Long2ObjectOpenHashMap<>();
+        public final Long2ObjectMap<BoundingBox> bounds = new Long2ObjectOpenHashMap<>();
         final Map<ResourceLocation, BoundingBox[]> structureBounds = new ConcurrentHashMap<>();
     }
+
 
     public void cacheStructure(Level level, BlockPos pos, ResourceLocation structure, BoundingBox bounds) {
         String dimensionKey = level.dimension().location().toString();
@@ -109,7 +113,7 @@ public class StructureCache {
     public void onChunkUnload(ChunkEvent.Unload event) {
         if (event.getChunk() instanceof LevelChunk chunk) {
             String dimensionKey = chunk.getLevel().dimension().location().toString();
-            StructureBoundCache cache = dimensionCaches.get(dimensionKey);
+            StructureCache.StructureBoundCache cache = dimensionCaches.get(dimensionKey);
             if (cache != null) {
                 long chunkKey = chunk.getPos().toLong();
                 ResourceLocation structure = cache.structures.remove(chunkKey);
@@ -135,6 +139,7 @@ public class StructureCache {
         }
         return newArray;
     }
+
 
     public void clearCache() {
         dimensionCaches.clear();
