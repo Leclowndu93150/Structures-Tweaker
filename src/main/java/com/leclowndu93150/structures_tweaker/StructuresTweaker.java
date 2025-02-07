@@ -32,6 +32,7 @@ public class StructuresTweaker {
         NeoForge.EVENT_BUS.register(structureCache);
         NeoForge.EVENT_BUS.register(this.structureEventHandler);
         NeoForge.EVENT_BUS.register(StructureBoxRenderer.class);
+        NeoForge.EVENT_BUS.register(ShowStructureCommand.class);
     }
 
     @SubscribeEvent
