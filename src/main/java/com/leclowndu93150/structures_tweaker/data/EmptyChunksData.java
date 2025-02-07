@@ -8,8 +8,8 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.saveddata.SavedData;
 import net.minecraft.world.level.storage.DimensionDataStorage;
-import net.neoforged.bus.api.SubscribeEvent;
-import net.neoforged.neoforge.event.server.ServerStartedEvent;
+import net.minecraftforge.event.server.ServerStartedEvent;
+import net.minecraftforge.eventbus.api.SubscribeEvent;
 
 import java.util.HashSet;
 import java.util.Set;
@@ -20,11 +20,8 @@ public class EmptyChunksData extends SavedData {
     public static EmptyChunksData get(ServerLevel level) {
         DimensionDataStorage storage = level.getDataStorage();
         return storage.computeIfAbsent(
-                new SavedData.Factory<>(
-                        EmptyChunksData::new,
-                        (tag, provider) -> load(tag),
-                        null
-                ),
+                EmptyChunksData::load,
+                EmptyChunksData::new,
                 "structures_tweaker_empty_chunks"
         );
     }
@@ -39,7 +36,7 @@ public class EmptyChunksData extends SavedData {
     }
 
     @Override
-    public CompoundTag save(CompoundTag tag, HolderLookup.Provider provider) {
+    public CompoundTag save(CompoundTag tag) {
         ListTag list = new ListTag();
         for (Long chunkPos : emptyChunks) {
             list.add(LongTag.valueOf(chunkPos));

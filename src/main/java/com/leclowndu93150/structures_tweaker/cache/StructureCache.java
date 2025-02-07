@@ -8,8 +8,8 @@ import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.chunk.LevelChunk;
 import net.minecraft.world.level.levelgen.structure.BoundingBox;
-import net.neoforged.neoforge.event.level.ChunkEvent;
-import net.neoforged.bus.api.SubscribeEvent;
+import net.minecraftforge.event.level.ChunkEvent;
+import net.minecraftforge.eventbus.api.SubscribeEvent;
 
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;

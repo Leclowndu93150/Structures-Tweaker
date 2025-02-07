@@ -20,15 +20,15 @@ import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.levelgen.structure.Structure;
-import net.neoforged.bus.api.SubscribeEvent;
-import net.neoforged.neoforge.common.util.TriState;
-import net.neoforged.neoforge.event.entity.living.FinalizeSpawnEvent;
-import net.neoforged.neoforge.event.entity.player.AttackEntityEvent;
-import net.neoforged.neoforge.event.entity.player.ItemEntityPickupEvent;
-import net.neoforged.neoforge.event.entity.player.PlayerInteractEvent;
-import net.neoforged.neoforge.event.level.BlockEvent;
-import net.neoforged.neoforge.event.level.ExplosionEvent;
-import net.neoforged.neoforge.event.server.ServerStoppedEvent;
+import net.minecraftforge.event.entity.living.MobSpawnEvent;
+import net.minecraftforge.event.entity.player.AttackEntityEvent;
+import net.minecraftforge.event.entity.player.EntityItemPickupEvent;
+import net.minecraftforge.event.entity.player.PlayerInteractEvent;
+import net.minecraftforge.event.level.BlockEvent;
+import net.minecraftforge.event.level.ExplosionEvent;
+import net.minecraftforge.event.server.ServerStoppedEvent;
+import net.minecraftforge.eventbus.api.Event;
+import net.minecraftforge.eventbus.api.SubscribeEvent;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -159,9 +159,9 @@ public class StructureEventHandler {
 
         Entity source = event.getExplosion().getDirectSourceEntity();
         BlockPos pos = source != null ? source.blockPosition() :
-                new BlockPos((int)event.getExplosion().x,
-                        (int)event.getExplosion().y,
-                        (int)event.getExplosion().z);
+                new BlockPos((int)event.getExplosion().getPosition().x(),
+                        (int)event.getExplosion().getPosition().y(),
+                        (int)event.getExplosion().getPosition().z());
 
         handleStructureEvent(event.getLevel(), pos, (structure, flags) -> {
             if (!flags.allowExplosions()) {
@@ -173,7 +173,7 @@ public class StructureEventHandler {
     }
 
     @SubscribeEvent
-    public void onMobSpawn(FinalizeSpawnEvent event) {
+    public void onMobSpawn(MobSpawnEvent.FinalizeSpawn event) {
         if (event.getLevel().isClientSide() || !configManager.isReady()) return;
 
         handleStructureEvent(event.getLevel().getLevel(), event.getEntity().blockPosition(),
@@ -204,13 +204,13 @@ public class StructureEventHandler {
     }
 
     @SubscribeEvent
-    public void onItemPickup(ItemEntityPickupEvent.Pre event) {
+    public void onItemPickup(EntityItemPickupEvent event) {
         if (!configManager.isReady()) return;
 
-        ItemEntity item = event.getItemEntity();
+        ItemEntity item = event.getItem();
         handleStructureEvent(item.level(), item.blockPosition(), (structure, flags) -> {
             if (!flags.allowItemPickup() || isProtectedItem(item)) {
-                event.setCanPickup(TriState.FALSE);
+                event.setResult(Event.Result.DENY);
                 return true;
             }
             return false;
@@ -283,7 +283,7 @@ public class StructureEventHandler {
         if (path.startsWith(namespace + "/")) {
             path = path.substring(namespace.length() + 1);
         }
-        return ResourceLocation.fromNamespaceAndPath(namespace, path);
+        return new ResourceLocation(namespace, path);
     }
 
     private boolean isProtectedItem(ItemEntity item) {

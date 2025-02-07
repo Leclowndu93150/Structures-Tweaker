@@ -14,8 +14,8 @@ import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.chunk.ChunkAccess;
 import net.minecraft.world.level.levelgen.structure.BoundingBox;
 import net.minecraft.resources.ResourceLocation;
-import net.neoforged.bus.api.SubscribeEvent;
-import net.neoforged.neoforge.event.tick.ServerTickEvent;
+import net.minecraftforge.event.TickEvent;
+import net.minecraftforge.eventbus.api.SubscribeEvent;
 
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -78,7 +78,8 @@ public class ShowStructureCommand {
     }
 
     @SubscribeEvent
-    public static void onServerTick(ServerTickEvent.Post event) {
+    public static void onServerTick(TickEvent.ServerTickEvent event) {
+        if (event.phase != TickEvent.Phase.END) return;
         if (!isEnabled) return;
 
         long currentTime = event.getServer().getTickCount();

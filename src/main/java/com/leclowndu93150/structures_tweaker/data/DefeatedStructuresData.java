@@ -16,13 +16,9 @@ public class DefeatedStructuresData extends SavedData {
     private final Map<ResourceLocation, BoundingBox> defeatedStructures = new HashMap<>();
 
     public static DefeatedStructuresData get(ServerLevel level) {
-        DimensionDataStorage storage = level.getDataStorage();
-        return storage.computeIfAbsent(
-                new SavedData.Factory<>(
-                        DefeatedStructuresData::new,
-                        (tag, provider) -> load(tag),
-                        null
-                ),
+        return level.getDataStorage().computeIfAbsent(
+                DefeatedStructuresData::load,
+                DefeatedStructuresData::new,
                 "structures_tweaker_defeated"
         );
     }
@@ -50,7 +46,7 @@ public class DefeatedStructuresData extends SavedData {
     }
 
     @Override
-    public CompoundTag save(CompoundTag tag, HolderLookup.Provider provider) {
+    public CompoundTag save(CompoundTag compoundTag) {
         ListTag list = new ListTag();
         defeatedStructures.forEach((id, box) -> {
             CompoundTag structureTag = new CompoundTag();
@@ -63,8 +59,8 @@ public class DefeatedStructuresData extends SavedData {
             structureTag.putInt("maxZ", box.maxZ());
             list.add(structureTag);
         });
-        tag.put("defeated_structures", list);
-        return tag;
+        compoundTag.put("defeated_structures", list);
+        return compoundTag;
     }
 
     public void markDefeated(ResourceLocation id, BoundingBox box) {

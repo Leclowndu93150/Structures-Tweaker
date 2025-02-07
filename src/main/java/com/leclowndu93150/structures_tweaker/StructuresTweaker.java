@@ -6,13 +6,14 @@ import com.leclowndu93150.structures_tweaker.config.StructureConfigManager;
 import com.leclowndu93150.structures_tweaker.data.EmptyChunksData;
 import com.leclowndu93150.structures_tweaker.events.StructureEventHandler;
 import com.leclowndu93150.structures_tweaker.render.StructureBoxRenderer;
-import net.neoforged.bus.api.IEventBus;
-import net.neoforged.bus.api.SubscribeEvent;
-import net.neoforged.fml.common.Mod;
-import net.neoforged.neoforge.common.NeoForge;
-import net.neoforged.neoforge.event.RegisterCommandsEvent;
-import net.neoforged.neoforge.event.server.ServerStartedEvent;
-import net.neoforged.neoforge.event.server.ServerStoppedEvent;
+import net.minecraftforge.common.MinecraftForge;
+import net.minecraftforge.event.RegisterCommandsEvent;
+import net.minecraftforge.event.server.ServerStartedEvent;
+import net.minecraftforge.event.server.ServerStoppedEvent;
+import net.minecraftforge.eventbus.api.IEventBus;
+import net.minecraftforge.eventbus.api.SubscribeEvent;
+import net.minecraftforge.fml.common.Mod;
+import net.minecraftforge.fml.javafmlmod.FMLJavaModLoadingContext;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -24,17 +25,18 @@ public class StructuresTweaker {
     private final StructureCache structureCache;
     private final StructureEventHandler structureEventHandler;
 
-    public StructuresTweaker(IEventBus modEventBus) {
+    public StructuresTweaker() {
+        IEventBus eventBus = FMLJavaModLoadingContext.get().getModEventBus();
         this.configManager = new StructureConfigManager();
         this.structureCache = new StructureCache();
         this.structureEventHandler = new StructureEventHandler(configManager, structureCache);
 
-        NeoForge.EVENT_BUS.register(this);
-        NeoForge.EVENT_BUS.register(structureCache);
-        NeoForge.EVENT_BUS.register(this.structureEventHandler);
-        NeoForge.EVENT_BUS.register(StructureBoxRenderer.class);
-        NeoForge.EVENT_BUS.register(ShowStructureCommand.class);
-        NeoForge.EVENT_BUS.register(EmptyChunksData.class);
+        MinecraftForge.EVENT_BUS.register(this);
+        MinecraftForge.EVENT_BUS.register(structureCache);
+        MinecraftForge.EVENT_BUS.register(this.structureEventHandler);
+        MinecraftForge.EVENT_BUS.register(StructureBoxRenderer.class);
+        MinecraftForge.EVENT_BUS.register(ShowStructureCommand.class);
+        MinecraftForge.EVENT_BUS.register(EmptyChunksData.class);
     }
 
     @SubscribeEvent

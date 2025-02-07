@@ -1,12 +1,14 @@
 package com.leclowndu93150.structures_tweaker.render;
 
 import com.leclowndu93150.structures_tweaker.StructuresTweaker;
+import com.mojang.blaze3d.platform.GlStateManager;
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.DefaultVertexFormat;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexConsumer;
 import com.mojang.blaze3d.vertex.VertexFormat;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.renderer.GameRenderer;
 import net.minecraft.client.renderer.LevelRenderer;
 import net.minecraft.client.renderer.RenderStateShard;
 import net.minecraft.client.renderer.RenderType;
@@ -15,17 +17,17 @@ import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.level.chunk.ChunkAccess;
 import net.minecraft.world.level.levelgen.structure.BoundingBox;
 import net.minecraft.world.phys.AABB;
-import net.neoforged.api.distmarker.Dist;
-import net.neoforged.fml.common.EventBusSubscriber;
-import net.neoforged.neoforge.client.event.RenderLevelStageEvent;
-import net.neoforged.bus.api.SubscribeEvent;
-import net.neoforged.neoforge.event.level.ChunkEvent;
+import net.minecraftforge.api.distmarker.Dist;
+import net.minecraftforge.client.event.RenderLevelStageEvent;
+import net.minecraftforge.event.level.ChunkEvent;
+import net.minecraftforge.eventbus.api.SubscribeEvent;
+import net.minecraftforge.fml.common.Mod;
 
 import java.util.HashMap;
 import java.util.Map;
 import java.util.OptionalDouble;
 
-@EventBusSubscriber(bus = EventBusSubscriber.Bus.GAME, value = Dist.CLIENT, modid = StructuresTweaker.MODID)
+@Mod.EventBusSubscriber(bus = Mod.EventBusSubscriber.Bus.FORGE, value = Dist.CLIENT, modid = StructuresTweaker.MODID)
 public class StructureBoxRenderer {
     private static final Map<ResourceLocation, BoundingBox> boxes = new HashMap<>();
     private static boolean isEnabled = false;
@@ -37,13 +39,30 @@ public class StructureBoxRenderer {
             false,
             false,
             RenderType.CompositeState.builder()
-                    .setShaderState(RenderStateShard.RENDERTYPE_LINES_SHADER)
-                    .setLineState(new RenderStateShard.LineStateShard(OptionalDouble.empty()))
-                    .setLayeringState(RenderStateShard.VIEW_OFFSET_Z_LAYERING)
-                    .setTransparencyState(RenderStateShard.TRANSLUCENT_TRANSPARENCY)
-                    .setWriteMaskState(RenderStateShard.COLOR_WRITE)
-                    .setCullState(RenderStateShard.NO_CULL)
-                    .setDepthTestState(RenderStateShard.NO_DEPTH_TEST)
+                    .setShaderState(new RenderStateShard.ShaderStateShard(GameRenderer::getRendertypeLinesShader))
+                    //.setLineState(new RenderStateShard.LineStateShard(OptionalDouble.empty()))
+                    .setLayeringState(new RenderStateShard.LayeringStateShard("view_offset_z_layering",
+                            () -> {
+                                PoseStack posestack = RenderSystem.getModelViewStack();
+                                posestack.pushPose();
+                                posestack.scale(0.99975586F, 0.99975586F, 0.99975586F);
+                                RenderSystem.applyModelViewMatrix();
+                            },
+                            () -> {
+                                PoseStack posestack = RenderSystem.getModelViewStack();
+                                posestack.popPose();
+                                RenderSystem.applyModelViewMatrix();
+                            }))
+                    .setTransparencyState(new RenderStateShard.TransparencyStateShard("translucent_transparency", () -> {
+                        RenderSystem.enableBlend();
+                        RenderSystem.blendFuncSeparate(GlStateManager.SourceFactor.SRC_ALPHA, GlStateManager.DestFactor.ONE_MINUS_SRC_ALPHA, GlStateManager.SourceFactor.ONE, GlStateManager.DestFactor.ONE_MINUS_SRC_ALPHA);
+                    }, () -> {
+                        RenderSystem.disableBlend();
+                        RenderSystem.defaultBlendFunc();
+                    }))
+                    .setWriteMaskState(new RenderStateShard.WriteMaskStateShard(true, false))
+                    .setCullState(new RenderStateShard.CullStateShard(false))
+                    .setDepthTestState(new RenderStateShard.DepthTestStateShard("always", 519))
                     .createCompositeState(false)
     );
 

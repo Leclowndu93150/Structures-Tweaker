@@ -21,11 +21,8 @@ public class StructureBlocksData extends SavedData {
     public static StructureBlocksData get(ServerLevel level) {
         DimensionDataStorage storage = level.getDataStorage();
         return storage.computeIfAbsent(
-                new SavedData.Factory<>(
-                        StructureBlocksData::new,
-                        (tag, provider) -> load(tag),
-                        null
-                ),
+                StructureBlocksData::load,
+                StructureBlocksData::new,
                 "structures_tweaker_player_blocks"
         );
     }
@@ -54,7 +51,7 @@ public class StructureBlocksData extends SavedData {
     }
 
     @Override
-    public CompoundTag save(CompoundTag tag, HolderLookup.Provider provider) {
+    public CompoundTag save(CompoundTag tag) {
         CompoundTag structuresTag = new CompoundTag();
 
         playerPlacedBlocks.forEach((id, positions) -> {

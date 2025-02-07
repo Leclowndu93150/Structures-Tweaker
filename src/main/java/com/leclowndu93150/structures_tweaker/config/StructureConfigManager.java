@@ -6,21 +6,12 @@ import com.leclowndu93150.structures_tweaker.StructuresTweaker;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.MinecraftServer;
-import net.neoforged.fml.ModContainer;
-import net.neoforged.fml.ModList;
-import net.neoforged.neoforge.event.server.ServerStartedEvent;
-import net.neoforged.neoforge.server.ServerLifecycleHooks;
+import net.minecraftforge.server.ServerLifecycleHooks;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-
-import java.io.FileWriter;
 import java.io.IOException;
-import java.io.InputStream;
-import java.io.InputStreamReader;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -75,7 +66,7 @@ public class StructureConfigManager {
                             String[] parts = relativePath.substring(0, relativePath.length() - 5).split("/", 2);
 
                             // Parts[0] is namespace, parts[1] is path
-                            ResourceLocation id = ResourceLocation.fromNamespaceAndPath(parts[0], parts[1]);
+                            ResourceLocation id = new ResourceLocation(parts[0], parts[1]);
 
                             String content = Files.readString(path);
                             StructureConfig config = GSON.fromJson(content, StructureConfig.class);
