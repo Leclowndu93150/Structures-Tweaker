@@ -217,15 +217,23 @@ public class StructureEventHandler {
         });
     }
 
+
     @SubscribeEvent
     public void onServerStopped(ServerStoppedEvent event) {
         structureFlags.clear();
     }
 
     private void handleStructureEvent(Level level, BlockPos pos, BiPredicate<ResourceLocation, StructureEventFlags> callback) {
-        if (Thread.currentThread().getName().contains("worldgen")) return;
-        if (!configManager.isReady() || !level.hasChunkAt(pos)) return;
-        if (!(level instanceof ServerLevel serverLevel)) return;
+
+        if (Thread.currentThread().getName().contains("worldgen")) {
+            return;
+        }
+        if (!configManager.isReady() || !level.hasChunkAt(pos)) {
+            return;
+        }
+        if (!(level instanceof ServerLevel serverLevel)) {
+            return;
+        }
 
         ResourceLocation cached = structureCache.getStructureAt(level, pos);
         if (cached != null) {
@@ -275,6 +283,7 @@ public class StructureEventHandler {
         if (!foundStructure) {
             EmptyChunksData.get(serverLevel).markEmpty(new ChunkPos(pos));
         }
+
     }
 
     private ResourceLocation normalizeStructureId(ResourceLocation id) {
