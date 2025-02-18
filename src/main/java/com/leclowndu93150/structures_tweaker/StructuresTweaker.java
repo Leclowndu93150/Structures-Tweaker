@@ -14,6 +14,7 @@ import net.minecraftforge.eventbus.api.IEventBus;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
 import net.minecraftforge.fml.javafmlmod.FMLJavaModLoadingContext;
+import net.minecraftforge.fml.loading.FMLLoader;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -34,8 +35,10 @@ public class StructuresTweaker {
         MinecraftForge.EVENT_BUS.register(this);
         MinecraftForge.EVENT_BUS.register(structureCache);
         MinecraftForge.EVENT_BUS.register(this.structureEventHandler);
-        MinecraftForge.EVENT_BUS.register(StructureBoxRenderer.class);
-        MinecraftForge.EVENT_BUS.register(ShowStructureCommand.class);
+        if(FMLLoader.getDist().isClient()){
+            MinecraftForge.EVENT_BUS.register(StructureBoxRenderer.class);
+            MinecraftForge.EVENT_BUS.register(ShowStructureCommand.class);
+        }
         MinecraftForge.EVENT_BUS.register(EmptyChunksData.class);
     }
 
@@ -54,8 +57,4 @@ public class StructuresTweaker {
         LOGGER.info("StructuresTweaker cache cleared");
     }
 
-    @SubscribeEvent
-    public void onCommandRegister(RegisterCommandsEvent event) {
-        ShowStructureCommand.register(event.getDispatcher());
-    }
 }
