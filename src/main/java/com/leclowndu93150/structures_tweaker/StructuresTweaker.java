@@ -9,8 +9,8 @@ import com.leclowndu93150.structures_tweaker.render.StructureBoxRenderer;
 import net.neoforged.bus.api.IEventBus;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.Mod;
+import net.neoforged.fml.loading.FMLLoader;
 import net.neoforged.neoforge.common.NeoForge;
-import net.neoforged.neoforge.event.RegisterCommandsEvent;
 import net.neoforged.neoforge.event.server.ServerStartedEvent;
 import net.neoforged.neoforge.event.server.ServerStoppedEvent;
 import org.apache.logging.log4j.LogManager;
@@ -32,8 +32,10 @@ public class StructuresTweaker {
         NeoForge.EVENT_BUS.register(this);
         NeoForge.EVENT_BUS.register(structureCache);
         NeoForge.EVENT_BUS.register(this.structureEventHandler);
-        NeoForge.EVENT_BUS.register(StructureBoxRenderer.class);
-        NeoForge.EVENT_BUS.register(ShowStructureCommand.class);
+        if(FMLLoader.getDist().isClient()){
+            NeoForge.EVENT_BUS.register(StructureBoxRenderer.class);
+            NeoForge.EVENT_BUS.register(ShowStructureCommand.class);
+        }
         NeoForge.EVENT_BUS.register(EmptyChunksData.class);
     }
 
@@ -50,10 +52,5 @@ public class StructuresTweaker {
     public void onServerStopped(ServerStoppedEvent event) {
         structureCache.clearCache();
         LOGGER.info("StructuresTweaker cache cleared");
-    }
-
-    @SubscribeEvent
-    public void onCommandRegister(RegisterCommandsEvent event) {
-        ShowStructureCommand.register(event.getDispatcher());
     }
 }
