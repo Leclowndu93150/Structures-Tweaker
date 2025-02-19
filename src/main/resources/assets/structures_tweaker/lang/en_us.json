@@ -1,5 +1,5 @@
 {
-  "itemGroup.structures_tweaker": "Example Mod Tab",
-  "block.structures_tweaker.example_block": "Example Block",
-  "item.structures_tweaker.example_item": "Example Item"
+  "message.structures_tweaker.no_elytra": "§cElytra flight is not allowed in this structure",
+  "message.structures_tweaker.no_pearls": "§cEnder Pearls cannot be used in this structure",
+  "message.structures_tweaker.no_riptide": "§cRiptide cannot be used in this structure"
 }

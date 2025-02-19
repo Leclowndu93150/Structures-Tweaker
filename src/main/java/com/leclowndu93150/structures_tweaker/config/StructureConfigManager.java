@@ -1,7 +1,6 @@
 package com.leclowndu93150.structures_tweaker.config;
 
-import com.google.gson.Gson;
-import com.google.gson.GsonBuilder;
+import com.google.gson.*;
 import com.leclowndu93150.structures_tweaker.StructuresTweaker;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.resources.ResourceLocation;
@@ -28,36 +27,36 @@ public class StructureConfigManager {
 
     public StructureConfigManager() {
         registerCustomModConfig("das", Map.of(
-                "deep_fortress", createCustomConfig(false, true, false, true, true, true, true, true, false)
+                "deep_fortress", createCustomConfig(false, true, false, true, true, true, true, true, false, false, false, false)
         ));
         registerCustomModConfig("das", Map.of(
-                "deep_spawner_1", createCustomConfig(false, true, false, true, true, true, true, true, false)
+                "deep_spawner_1", createCustomConfig(false, true, false, true, true, true, true, true, false, false, false, false)
         ));
         registerCustomModConfig("das", Map.of(
-                "deep_spawner_2", createCustomConfig(false, true, false, true, true, true, true, true, false)
+                "deep_spawner_2", createCustomConfig(false, true, false, true, true, true, true, true, false, false, false, false)
         ));
         registerCustomModConfig("das", Map.of(
-                "deep_spawner_3", createCustomConfig(false, true, false, true, true, true, true, true, false)
+                "deep_spawner_3", createCustomConfig(false, true, false, true, true, true, true, true, false, false, false, false)
         ));
 
         registerCustomModConfig("uas", Map.of(
-                "carousel_spawner_1", createCustomConfig(false, true, false, true, true, true, true, true, false)
+                "carousel_spawner_1", createCustomConfig(false, true, false, true, true, true, true, true, false, false, false, false)
         ));
         registerCustomModConfig("uas", Map.of(
-                "carousel_spawner_2", createCustomConfig(false, true, false, true, true, true, true, true, false)
+                "carousel_spawner_2", createCustomConfig(false, true, false, true, true, true, true, true, false, false, false, false)
         ));
         registerCustomModConfig("uas", Map.of(
-                "carousel_spawner_3", createCustomConfig(false, true, false, true, true, true, true, true, false)
+                "carousel_spawner_3", createCustomConfig(false, true, false, true, true, true, true, true, false, false, false, false)
         ));
         registerCustomModConfig("uas", Map.of(
-                "garden_fortress", createCustomConfig(false, true, false, true, true, true, true, true, false)
+                "garden_fortress", createCustomConfig(false, true, false, true, true, true, true, true, false, false, false, false)
         ));
-
     }
 
     private StructureConfig createCustomConfig(boolean canBreakBlocks, boolean canInteract, boolean canPlaceBlocks,
                                                boolean allowPlayerPVP, boolean allowCreatureSpawning, boolean allowFireSpread,
-                                               boolean allowExplosions, boolean allowItemPickup, boolean onlyProtectOriginalBlocks) {
+                                               boolean allowExplosions, boolean allowItemPickup, boolean onlyProtectOriginalBlocks,
+                                               boolean allowElytraFlight, boolean allowEnderPearls, boolean allowRiptide) {
         StructureConfig config = new StructureConfig();
         try {
             var fields = StructureConfig.class.getDeclaredFields();
@@ -73,6 +72,9 @@ public class StructureConfigManager {
                     case "allowExplosions" -> field.set(config, allowExplosions);
                     case "allowItemPickup" -> field.set(config, allowItemPickup);
                     case "onlyProtectOriginalBlocks" -> field.set(config, onlyProtectOriginalBlocks);
+                    case "allowElytraFlight" -> field.set(config, allowElytraFlight);
+                    case "allowEnderPearls" -> field.set(config, allowEnderPearls);
+                    case "allowRiptide" -> field.set(config, allowRiptide);
                 }
             }
         } catch (Exception e) {
@@ -86,6 +88,8 @@ public class StructureConfigManager {
     }
 
     public void generateConfigs() {
+        ConfigMigration.migrateConfigs(CONFIG_DIR);
+
         MinecraftServer server = ServerLifecycleHooks.getCurrentServer();
         if (server == null) {
             LOGGER.error("Server instance is null during config generation!");
@@ -102,7 +106,8 @@ public class StructureConfigManager {
                     Files.createDirectories(configPath.getParent());
                     if (!Files.exists(configPath)) {
                         StructureConfig config = getCustomConfigOrDefault(id);
-                        String json = GSON.toJson(config);
+                        ConfigMigration.ConfigWrapper wrapper = new ConfigMigration.ConfigWrapper(config);
+                        String json = GSON.toJson(wrapper);
                         Files.writeString(configPath, json);
                     }
                 } catch (IOException e) {
@@ -136,13 +141,44 @@ public class StructureConfigManager {
                             String relativePath = CONFIG_DIR.relativize(path).toString().replace('\\', '/');
                             String[] parts = relativePath.substring(0, relativePath.length() - 5).split("/", 2);
 
-                            ResourceLocation id = new ResourceLocation(parts[0], parts[1]);
+                            if (parts.length != 2) {
+                                LOGGER.error("Invalid config path format: {}", relativePath);
+                                return;
+                            }
+
+                            ResourceLocation id = ResourceLocation.tryParse(parts[0] + ":" + parts[1]);
+                            if (id == null) {
+                                LOGGER.error("Invalid resource location from path: {}", relativePath);
+                                return;
+                            }
 
                             String content = Files.readString(path);
-                            StructureConfig config = GSON.fromJson(content, StructureConfig.class);
-                            configCache.put(id, config);
+                            JsonObject json = JsonParser.parseString(content).getAsJsonObject();
+
+                            StructureConfig config;
+                            if (json.has("config")) {
+                                JsonElement configElement = json.get("config");
+                                if (configElement != null && configElement.isJsonObject()) {
+                                    config = GSON.fromJson(configElement, StructureConfig.class);
+                                } else {
+                                    LOGGER.error("Invalid config format for {}: config field is not an object", id);
+                                    return;
+                                }
+                            } else {
+                                config = GSON.fromJson(json, StructureConfig.class);
+                            }
+
+                            if (config != null) {
+                                configCache.put(id, config);
+                            } else {
+                                LOGGER.error("Failed to parse config for {}", id);
+                            }
                         } catch (IOException e) {
                             LOGGER.error("Error loading config {}: {}", path, e.getMessage());
+                        } catch (JsonSyntaxException e) {
+                            LOGGER.error("Invalid JSON in config {}: {}", path, e.getMessage());
+                        } catch (Exception e) {
+                            LOGGER.error("Unexpected error loading config {}: {}", path, e.getMessage());
                         }
                     });
         } catch (IOException e) {
@@ -150,6 +186,7 @@ public class StructureConfigManager {
         }
 
         configsLoaded = true;
+        LOGGER.info("Loaded {} structure configs", configCache.size());
     }
 
     public boolean isReady() {

@@ -7,13 +7,10 @@ import com.leclowndu93150.structures_tweaker.data.EmptyChunksData;
 import com.leclowndu93150.structures_tweaker.events.StructureEventHandler;
 import com.leclowndu93150.structures_tweaker.render.StructureBoxRenderer;
 import net.minecraftforge.common.MinecraftForge;
-import net.minecraftforge.event.RegisterCommandsEvent;
 import net.minecraftforge.event.server.ServerStartedEvent;
 import net.minecraftforge.event.server.ServerStoppedEvent;
-import net.minecraftforge.eventbus.api.IEventBus;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
-import net.minecraftforge.fml.javafmlmod.FMLJavaModLoadingContext;
 import net.minecraftforge.fml.loading.FMLLoader;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -27,10 +24,11 @@ public class StructuresTweaker {
     private final StructureEventHandler structureEventHandler;
 
     public StructuresTweaker() {
-        IEventBus eventBus = FMLJavaModLoadingContext.get().getModEventBus();
         this.configManager = new StructureConfigManager();
         this.structureCache = new StructureCache();
         this.structureEventHandler = new StructureEventHandler(configManager, structureCache);
+
+        StructureEventHandler.setInstance(structureEventHandler);
 
         MinecraftForge.EVENT_BUS.register(this);
         MinecraftForge.EVENT_BUS.register(structureCache);

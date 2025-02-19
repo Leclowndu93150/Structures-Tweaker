@@ -100,8 +100,20 @@ sourceSets.main.resources { srcDir 'src/generated/resources' }
 
 
 dependencies {
+    annotationProcessor 'org.spongepowered:mixin:0.8.5:processor'
     //runtimeOnly(files("libs/undergarden_additional_structures.jar"))
     //runtimeOnly "curse.maven:the-undergarden-379849:5182632"
+}
+
+mixin {
+    add sourceSets.main, 'structures_tweaker.refmap.json'
+    config 'structures_tweaker.mixins.json'
+}
+
+jar {
+    manifest.attributes([
+            "MixinConfigs": "structures_tweaker.mixins.json"
+    ])
 }
 
 // This block of code expands all declared replace properties in the specified resource targets.
