@@ -29,6 +29,8 @@ public class StructuresTweaker {
         this.structureCache = new StructureCache();
         this.structureEventHandler = new StructureEventHandler(configManager, structureCache);
 
+        StructureEventHandler.setInstance(structureEventHandler);
+
         NeoForge.EVENT_BUS.register(this);
         NeoForge.EVENT_BUS.register(structureCache);
         NeoForge.EVENT_BUS.register(this.structureEventHandler);

@@ -8,6 +8,7 @@ import com.leclowndu93150.structures_tweaker.data.EmptyChunksData;
 import com.leclowndu93150.structures_tweaker.data.StructureBlocksData;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.Registries;
+import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.Entity;
@@ -15,6 +16,8 @@ import net.minecraft.world.entity.MobCategory;
 import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.BlockItem;
+import net.minecraft.world.item.Items;
+import net.minecraft.world.item.TridentItem;
 import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Block;
@@ -36,6 +39,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiPredicate;
 
 public class StructureEventHandler {
@@ -76,7 +80,10 @@ public class StructureEventHandler {
                     config.allowFireSpread(),
                     config.allowExplosions(),
                     config.allowItemPickup(),
-                    config.onlyProtectOriginalBlocks()
+                    config.onlyProtectOriginalBlocks(),
+                    config.allowElytraFlight(),
+                    config.allowEnderPearls(),
+                    config.allowRiptide()
             ));
         });
     }
@@ -223,7 +230,7 @@ public class StructureEventHandler {
         structureFlags.clear();
     }
 
-    private void handleStructureEvent(Level level, BlockPos pos, BiPredicate<ResourceLocation, StructureEventFlags> callback) {
+    public void handleStructureEvent(Level level, BlockPos pos, BiPredicate<ResourceLocation, StructureEventFlags> callback) {
 
         if (Thread.currentThread().getName().contains("worldgen")) {
             return;
@@ -286,6 +293,27 @@ public class StructureEventHandler {
 
     }
 
+    @SubscribeEvent
+    public void onItemUse(PlayerInteractEvent.RightClickItem event) {
+        if (event.getLevel().isClientSide()) return;
+        Player player = event.getEntity();
+        handleStructureEvent(player.level(), player.blockPosition(), (structure, flags) -> {
+            if (!flags.allowEnderPearls() && event.getItemStack().is(Items.ENDER_PEARL)) {
+                event.setCanceled(true);
+                player.displayClientMessage(Component.translatable("message.structures_tweaker.no_pearls"), true);
+                return true;
+            }
+            if (!flags.allowRiptide() && event.getItemStack().getItem() instanceof TridentItem) {
+                if (player.isInWaterOrRain()) {
+                    event.setCanceled(true);
+                    player.displayClientMessage(Component.translatable("message.structures_tweaker.no_riptide"), true);
+                    return true;
+                }
+            }
+            return false;
+        });
+    }
+
     private ResourceLocation normalizeStructureId(ResourceLocation id) {
         String namespace = id.getNamespace();
         String path = id.getPath();
@@ -301,6 +329,25 @@ public class StructureEventHandler {
                         PROTECTED_BLOCKS.contains(blockItem.getBlock()));
     }
 
+    private static StructureEventHandler INSTANCE;
+    public static void setInstance(StructureEventHandler handler) {
+        INSTANCE = handler;
+    }
+    public static boolean shouldCancelElytraFlight(Level level, BlockPos pos) {
+        if (level.isClientSide() || !(level instanceof ServerLevel) || INSTANCE == null) {
+            return false;
+        }
+        AtomicBoolean shouldCancel = new AtomicBoolean(false);
+        INSTANCE.handleStructureEvent(level, pos, (structure, flags) -> {
+            if (!flags.allowElytraFlight()) {
+                shouldCancel.set(true);
+                return true;
+            }
+            return false;
+        });
+        return shouldCancel.get();
+    }
+
     private record StructureEventFlags(
             boolean canBreakBlocks,
             boolean canInteract,
@@ -310,7 +357,10 @@ public class StructureEventHandler {
             boolean allowFireSpread,
             boolean allowExplosions,
             boolean allowItemPickup,
-            boolean onlyProtectOriginalBlocks
+            boolean onlyProtectOriginalBlocks,
+            boolean allowElytraFlight,
+            boolean allowEnderPearls,
+            boolean allowRiptide
     ) {}
 
 }

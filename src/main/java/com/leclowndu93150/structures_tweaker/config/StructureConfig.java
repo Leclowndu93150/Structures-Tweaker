@@ -10,6 +10,9 @@ public class StructureConfig {
     private boolean allowExplosions;
     private boolean allowItemPickup;
     private boolean onlyProtectOriginalBlocks;
+    private boolean allowElytraFlight;
+    private boolean allowEnderPearls;
+    private boolean allowRiptide;
 
     public StructureConfig() {
         this.canBreakBlocks = true;
@@ -21,6 +24,9 @@ public class StructureConfig {
         this.allowExplosions = true;
         this.allowItemPickup = true;
         this.onlyProtectOriginalBlocks = false;
+        this.allowElytraFlight = true;
+        this.allowEnderPearls = true;
+        this.allowRiptide = true;
     }
 
     public boolean canBreakBlocks() { return canBreakBlocks; }
@@ -32,5 +38,8 @@ public class StructureConfig {
     public boolean allowExplosions() { return allowExplosions; }
     public boolean allowItemPickup() { return allowItemPickup; }
     public boolean onlyProtectOriginalBlocks() { return onlyProtectOriginalBlocks; }
+    public boolean allowElytraFlight() { return allowElytraFlight; }
+    public boolean allowEnderPearls() { return allowEnderPearls; }
+    public boolean allowRiptide() { return allowRiptide; }
 }
 
