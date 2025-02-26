@@ -219,7 +219,7 @@ public class StructureEventHandler {
 
         ItemEntity item = event.getItem();
         handleStructureEvent(item.level(), item.blockPosition(), (structure, flags) -> {
-            if (!flags.allowItemPickup() || isProtectedItem(item)) {
+            if (!flags.allowItemPickup()) {
                 event.setResult(Event.Result.DENY);
                 return true;
             }
