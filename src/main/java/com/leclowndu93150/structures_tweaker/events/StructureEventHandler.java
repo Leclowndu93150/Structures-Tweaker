@@ -216,7 +216,7 @@ public class StructureEventHandler {
 
         ItemEntity item = event.getItemEntity();
         handleStructureEvent(item.level(), item.blockPosition(), (structure, flags) -> {
-            if (!flags.allowItemPickup() || isProtectedItem(item)) {
+            if (!flags.allowItemPickup()) {
                 event.setCanPickup(TriState.FALSE);
                 return true;
             }
