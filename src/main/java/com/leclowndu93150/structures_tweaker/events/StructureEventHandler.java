@@ -2,7 +2,8 @@ package com.leclowndu93150.structures_tweaker.events;
 
 import com.leclowndu93150.structures_tweaker.StructuresTweaker;
 import com.leclowndu93150.structures_tweaker.cache.StructureCache;
-import com.leclowndu93150.structures_tweaker.config.StructureConfigManager;
+import com.leclowndu93150.structures_tweaker.config.core.StructureConfig;
+import com.leclowndu93150.structures_tweaker.config.core.StructureConfigManager;
 import com.leclowndu93150.structures_tweaker.data.DefeatedStructuresData;
 import com.leclowndu93150.structures_tweaker.data.EmptyChunksData;
 import com.leclowndu93150.structures_tweaker.data.StructureBlocksData;
@@ -45,7 +46,7 @@ import java.util.function.BiPredicate;
 public class StructureEventHandler {
     private final StructureConfigManager configManager;
     private final StructureCache structureCache;
-    private final Map<ResourceLocation, StructureEventFlags> structureFlags;
+    private final Map<ResourceLocation, DynamicStructureFlags> structureFlags;
 
     private static final Logger LOGGER = LogManager.getLogger(StructuresTweaker.MODID);
 
@@ -71,20 +72,7 @@ public class StructureEventHandler {
         structureFlags.clear();
         configManager.getAllConfigs().forEach((id, config) -> {
             ResourceLocation normalizedId = normalizeStructureId(id);
-            structureFlags.put(normalizedId, new StructureEventFlags(
-                    config.canBreakBlocks(),
-                    config.canInteract(),
-                    config.canPlaceBlocks(),
-                    config.allowPlayerPVP(),
-                    config.allowCreatureSpawning(),
-                    config.allowFireSpread(),
-                    config.allowExplosions(),
-                    config.allowItemPickup(),
-                    config.onlyProtectOriginalBlocks(),
-                    config.allowElytraFlight(),
-                    config.allowEnderPearls(),
-                    config.allowRiptide()
-            ));
+            structureFlags.put(normalizedId, new DynamicStructureFlags(config));
         });
     }
 
@@ -230,7 +218,7 @@ public class StructureEventHandler {
         structureFlags.clear();
     }
 
-    public void handleStructureEvent(Level level, BlockPos pos, BiPredicate<ResourceLocation, StructureEventFlags> callback) {
+    public void handleStructureEvent(Level level, BlockPos pos, BiPredicate<ResourceLocation, DynamicStructureFlags> callback) {
 
         if (Thread.currentThread().getName().contains("worldgen")) {
             return;
@@ -244,7 +232,7 @@ public class StructureEventHandler {
 
         ResourceLocation cached = structureCache.getStructureAt(level, pos);
         if (cached != null) {
-            StructureEventFlags flags = structureFlags.get(cached);
+            DynamicStructureFlags flags = structureFlags.get(cached);
             if (flags != null) {
                 var registry = level.registryAccess().registryOrThrow(Registries.STRUCTURE);
                 for (var structure : registry) {
@@ -279,7 +267,7 @@ public class StructureEventHandler {
 
                 structureCache.cacheStructure(level, pos, id, reference.getBoundingBox());
 
-                StructureEventFlags flags = structureFlags.get(id);
+                DynamicStructureFlags flags = structureFlags.get(id);
                 if (flags != null) {
                     callback.test(id, flags);
                 }
@@ -347,20 +335,5 @@ public class StructureEventHandler {
         });
         return shouldCancel.get();
     }
-
-    private record StructureEventFlags(
-            boolean canBreakBlocks,
-            boolean canInteract,
-            boolean canPlaceBlocks,
-            boolean allowPlayerPVP,
-            boolean allowCreatureSpawning,
-            boolean allowFireSpread,
-            boolean allowExplosions,
-            boolean allowItemPickup,
-            boolean onlyProtectOriginalBlocks,
-            boolean allowElytraFlight,
-            boolean allowEnderPearls,
-            boolean allowRiptide
-    ) {}
 
 }
