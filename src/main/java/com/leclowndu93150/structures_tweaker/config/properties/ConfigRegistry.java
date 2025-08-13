@@ -58,8 +58,40 @@ public class ConfigRegistry {
         "allowCreativeFlight", true, Boolean.class, "Allow creative flight in structure"
     );
     
+    public static final ConfigProperty<Boolean> ALLOW_ENDER_TELEPORTATION = register(
+        "allowEnderTeleportation", true, Boolean.class, "Allow all ender-based teleportation (pearls, chorus fruit) in structure"
+    );
+    
+    @SuppressWarnings("unchecked")
+    public static final ConfigProperty<List<String>> INTERACTION_WHITELIST = registerList(
+        "interactionWhitelist", new ArrayList<>(), "Blocks that can always be interacted with (e.g., minecraft:lever, minecraft:button)"
+    );
+    
+    @SuppressWarnings("unchecked")
+    public static final ConfigProperty<List<String>> INTERACTION_BLACKLIST = registerList(
+        "interactionBlacklist", new ArrayList<>(), "Blocks that can never be interacted with (e.g., minecraft:repeater, minecraft:comparator)"
+    );
+    
+    @SuppressWarnings("unchecked")
+    public static final ConfigProperty<List<String>> ITEM_USE_BLACKLIST = registerList(
+        "itemUseBlacklist", new ArrayList<>(), "Items that cannot be used in the structure (e.g., minecraft:boat, minecraft:water_bucket)"
+    );
+    
+    @SuppressWarnings("unchecked")
+    public static final ConfigProperty<List<String>> ITEM_USE_WHITELIST = registerList(
+        "itemUseWhitelist", new ArrayList<>(), "Items that can always be used in the structure, overrides blacklist"
+    );
+    
     public static <T> ConfigProperty<T> register(String key, T defaultValue, Class<T> type, String description) {
         ConfigProperty<T> property = new ConfigProperty<>(key, defaultValue, type, description);
+        PROPERTIES.put(key, property);
+        REGISTRATIONS.add(new ConfigPropertyRegistration(key, System.currentTimeMillis()));
+        return property;
+    }
+    
+    @SuppressWarnings("unchecked")
+    public static ConfigProperty<List<String>> registerList(String key, List<String> defaultValue, String description) {
+        ConfigProperty<List<String>> property = new ConfigProperty<>(key, defaultValue, (Class<List<String>>)(Class<?>)List.class, description);
         PROPERTIES.put(key, property);
         REGISTRATIONS.add(new ConfigPropertyRegistration(key, System.currentTimeMillis()));
         return property;

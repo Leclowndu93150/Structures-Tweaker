@@ -5,6 +5,7 @@ import com.leclowndu93150.structures_tweaker.config.properties.ConfigProperty;
 import com.leclowndu93150.structures_tweaker.config.properties.ConfigRegistry;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -43,6 +44,27 @@ public class DynamicStructureFlags {
     public boolean allowEnderPearls() { return getValue(ConfigRegistry.ALLOW_ENDER_PEARLS); }
     public boolean allowRiptide() { return getValue(ConfigRegistry.ALLOW_RIPTIDE); }
     public boolean allowCreativeFlight() { return getValue(ConfigRegistry.ALLOW_CREATIVE_FLIGHT); }
+    public boolean allowEnderTeleportation() { return getValue(ConfigRegistry.ALLOW_ENDER_TELEPORTATION); }
+    
+    @SuppressWarnings("unchecked")
+    public List<String> getInteractionWhitelist() { 
+        return getValue(ConfigRegistry.INTERACTION_WHITELIST); 
+    }
+    
+    @SuppressWarnings("unchecked")
+    public List<String> getInteractionBlacklist() { 
+        return getValue(ConfigRegistry.INTERACTION_BLACKLIST); 
+    }
+    
+    @SuppressWarnings("unchecked")
+    public List<String> getItemUseBlacklist() { 
+        return getValue(ConfigRegistry.ITEM_USE_BLACKLIST); 
+    }
+    
+    @SuppressWarnings("unchecked")
+    public List<String> getItemUseWhitelist() { 
+        return getValue(ConfigRegistry.ITEM_USE_WHITELIST); 
+    }
     
     public Map<String, Object> getAllFlags() {
         return new HashMap<>(flags);

@@ -1,5 +1,6 @@
 package com.leclowndu93150.structures_tweaker.config.properties;
 
+import java.util.List;
 import java.util.function.Function;
 
 public class ConfigProperty<T> {
@@ -33,6 +34,11 @@ public class ConfigProperty<T> {
             };
         } else if (type == String.class) {
             return obj -> (T) String.valueOf(obj);
+        } else if (type == List.class) {
+            return obj -> {
+                if (obj instanceof List) return (T) obj;
+                return defaultValue;
+            };
         }
         return obj -> (T) obj;
     }

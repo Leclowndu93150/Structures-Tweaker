@@ -6,6 +6,7 @@ import com.leclowndu93150.structures_tweaker.config.properties.ConfigRegistry;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
 
 public class ConfigDocumentationGenerator {
     
@@ -135,6 +136,19 @@ TIPS
             return value.toString();
         } else if (value instanceof Number) {
             return value.toString();
+        } else if (value instanceof List<?> list) {
+            if (list.isEmpty()) {
+                return "[]";
+            }
+            StringBuilder sb = new StringBuilder("[");
+            boolean first = true;
+            for (Object item : list) {
+                if (!first) sb.append(", ");
+                sb.append("\"").append(item).append("\"");
+                first = false;
+            }
+            sb.append("]");
+            return sb.toString();
         }
         return "\"" + value + "\"";
     }

@@ -2,13 +2,17 @@ package com.leclowndu93150.structures_tweaker.config.core;
 
 import com.leclowndu93150.structures_tweaker.config.properties.ConfigProperty;
 import com.leclowndu93150.structures_tweaker.config.properties.ConfigRegistry;
+import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 public class ModularStructureConfig {
     private final Map<String, Object> properties = new HashMap<>();
+    private final Map<String, Object> explicitlySetValues = new HashMap<>();
     
     public ModularStructureConfig() {
         for (ConfigProperty<?> property : ConfigRegistry.getAllProperties().values()) {
@@ -19,6 +23,7 @@ public class ModularStructureConfig {
     public ModularStructureConfig(Map<String, Object> initialValues) {
         this();
         properties.putAll(initialValues);
+        explicitlySetValues.putAll(initialValues);
     }
     
     @SuppressWarnings("unchecked")
@@ -32,14 +37,20 @@ public class ModularStructureConfig {
     
     public <T> void setValue(ConfigProperty<T> property, T value) {
         properties.put(property.getKey(), value);
+        explicitlySetValues.put(property.getKey(), value);
     }
     
     public void setValue(String key, Object value) {
         properties.put(key, value);
+        explicitlySetValues.put(key, value);
     }
     
     public Map<String, Object> getAllValues() {
         return new HashMap<>(properties);
+    }
+    
+    public Map<String, Object> getExplicitlySetValues() {
+        return new HashMap<>(explicitlySetValues);
     }
     
     public void applyMissingDefaults() {
@@ -51,6 +62,10 @@ public class ModularStructureConfig {
     }
     
     public static ModularStructureConfig fromJson(JsonObject json) {
+        return fromJson(json, true);
+    }
+    
+    public static ModularStructureConfig fromJson(JsonObject json, boolean applyDefaults) {
         ModularStructureConfig config = new ModularStructureConfig();
         
         for (Map.Entry<String, JsonElement> entry : json.entrySet()) {
@@ -65,24 +80,46 @@ public class ModularStructureConfig {
                     config.setValue(key, value.getAsInt());
                 } else if (property.getType() == String.class && value.isJsonPrimitive()) {
                     config.setValue(key, value.getAsString());
+                } else if (property.getType() == List.class && value.isJsonArray()) {
+                    List<String> list = new ArrayList<>();
+                    JsonArray array = value.getAsJsonArray();
+                    for (JsonElement element : array) {
+                        if (element.isJsonPrimitive()) {
+                            list.add(element.getAsString());
+                        }
+                    }
+                    config.setValue(key, list);
                 }
             }
         }
         
-        config.applyMissingDefaults();
+        if (applyDefaults) {
+            config.applyMissingDefaults();
+        }
         return config;
     }
     
     public JsonObject toJson() {
         JsonObject json = new JsonObject();
-        for (Map.Entry<String, Object> entry : properties.entrySet()) {
-            Object value = entry.getValue();
-            if (value instanceof Boolean) {
-                json.addProperty(entry.getKey(), (Boolean) value);
-            } else if (value instanceof Number) {
-                json.addProperty(entry.getKey(), (Number) value);
-            } else if (value instanceof String) {
-                json.addProperty(entry.getKey(), (String) value);
+        for (ConfigProperty<?> property : ConfigRegistry.getAllProperties().values()) {
+            String key = property.getKey();
+            Object value = properties.get(key);
+            if (value != null) {
+                if (value instanceof Boolean) {
+                    json.addProperty(key, (Boolean) value);
+                } else if (value instanceof Number) {
+                    json.addProperty(key, (Number) value);
+                } else if (value instanceof String) {
+                    json.addProperty(key, (String) value);
+                } else if (value instanceof List<?>) {
+                    JsonArray array = new JsonArray();
+                    for (Object item : (List<?>) value) {
+                        if (item != null) {
+                            array.add(item.toString());
+                        }
+                    }
+                    json.add(key, array);
+                }
             }
         }
         return json;

@@ -30,10 +30,8 @@ public class StructureConfigManager {
     }
 
     public void generateConfigs() {
-        // First, ensure global config exists
         loadOrCreateGlobalConfig();
-        
-        // Generate documentation
+
         ConfigDocumentationGenerator.generateReadmeAndDocumentation(CONFIG_DIR);
         
         ModularConfigMigration.migrateAllConfigs(CONFIG_DIR);
@@ -53,12 +51,10 @@ public class StructureConfigManager {
                 try {
                     Files.createDirectories(configPath.getParent());
                     if (!Files.exists(configPath)) {
-                        // Create individual config that inherits from global
                         ModularStructureConfig individualConfig = ModularConfigMigration.loadOrCreateConfig(
                             configPath, id.getNamespace(), id.getPath()
                         );
-                        
-                        // Only save properties that differ from global defaults
+
                         IndividualConfigWrapper wrapper = new IndividualConfigWrapper(
                             individualConfig, globalConfig
                         );
@@ -107,8 +103,9 @@ public class StructureConfigManager {
                             
                             if (individualConfig != null) {
                                 // Create inherited config that combines global + individual
+                                // Use only explicitly set values, not defaults
                                 InheritedStructureConfig inherited = new InheritedStructureConfig(
-                                    globalConfig, individualConfig.getAllValues()
+                                    globalConfig, individualConfig.getExplicitlySetValues()
                                 );
                                 configCache.put(id, inherited);
                             } else {

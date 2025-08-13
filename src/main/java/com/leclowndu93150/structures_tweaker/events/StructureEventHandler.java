@@ -18,6 +18,7 @@ import net.minecraft.world.entity.MobCategory;
 import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.BlockItem;
+import net.minecraft.world.item.Item;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.item.TridentItem;
 import net.minecraft.world.level.ChunkPos;
@@ -27,6 +28,7 @@ import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.levelgen.structure.Structure;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.neoforge.common.util.TriState;
+import net.neoforged.neoforge.event.entity.EntityTeleportEvent;
 import net.neoforged.neoforge.event.entity.living.FinalizeSpawnEvent;
 import net.neoforged.neoforge.event.entity.player.AttackEntityEvent;
 import net.neoforged.neoforge.event.entity.player.ItemEntityPickupEvent;
@@ -37,6 +39,7 @@ import net.neoforged.neoforge.event.server.ServerStoppedEvent;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -50,18 +53,6 @@ public class StructureEventHandler {
     private final Map<ResourceLocation, DynamicStructureFlags> structureFlags;
 
     private static final Logger LOGGER = LogManager.getLogger(StructuresTweaker.MODID);
-
-    private static final Set<Block> STRUCTURE_BLOCKS = Set.of(
-            Blocks.STRUCTURE_BLOCK, Blocks.STRUCTURE_VOID, Blocks.COMMAND_BLOCK,
-            Blocks.CHAIN_COMMAND_BLOCK, Blocks.REPEATING_COMMAND_BLOCK,
-            Blocks.END_PORTAL_FRAME, Blocks.BEDROCK
-    );
-
-    private static final Set<Block> PROTECTED_BLOCKS = Set.of(
-            Blocks.CHEST, Blocks.TRAPPED_CHEST, Blocks.BARREL,
-            Blocks.DISPENSER, Blocks.DROPPER, Blocks.HOPPER,
-            Blocks.SHULKER_BOX
-    );
 
     public StructureEventHandler(StructureConfigManager configManager, StructureCache structureCache) {
         this.configManager = configManager;
@@ -141,6 +132,25 @@ public class StructureEventHandler {
         if (!configManager.isReady()) return;
 
         handleStructureEvent(event.getLevel(), event.getPos(), (structure, flags) -> {
+            Block block = event.getLevel().getBlockState(event.getPos()).getBlock();
+            ResourceLocation blockId = event.getLevel().registryAccess()
+                    .registryOrThrow(Registries.BLOCK).getKey(block);
+            
+            if (blockId != null) {
+                String blockIdStr = blockId.toString();
+                
+                List<String> whitelist = flags.getInteractionWhitelist();
+                if (whitelist != null && !whitelist.isEmpty() && whitelist.contains(blockIdStr)) {
+                    return false;
+                }
+                
+                List<String> blacklist = flags.getInteractionBlacklist();
+                if (blacklist != null && !blacklist.isEmpty() && blacklist.contains(blockIdStr)) {
+                    event.setCanceled(true);
+                    return true;
+                }
+            }
+            
             if (!flags.canInteract()) {
                 event.setCanceled(true);
                 return true;
@@ -287,6 +297,25 @@ public class StructureEventHandler {
         if (event.getLevel().isClientSide()) return;
         Player player = event.getEntity();
         handleStructureEvent(player.level(), player.blockPosition(), (structure, flags) -> {
+            ResourceLocation itemId = event.getLevel().registryAccess()
+                    .registryOrThrow(Registries.ITEM).getKey(event.getItemStack().getItem());
+            
+            if (itemId != null) {
+                String itemIdStr = itemId.toString();
+                
+                List<String> whitelist = flags.getItemUseWhitelist();
+                if (whitelist != null && !whitelist.isEmpty() && whitelist.contains(itemIdStr)) {
+                    return false;
+                }
+                
+                List<String> blacklist = flags.getItemUseBlacklist();
+                if (blacklist != null && !blacklist.isEmpty() && blacklist.contains(itemIdStr)) {
+                    event.setCanceled(true);
+                    player.displayClientMessage(Component.translatable("message.structures_tweaker.item_blacklisted"), true);
+                    return true;
+                }
+            }
+            
             if (!flags.allowEnderPearls() && event.getItemStack().is(Items.ENDER_PEARL)) {
                 event.setCanceled(true);
                 player.displayClientMessage(Component.translatable("message.structures_tweaker.no_pearls"), true);
@@ -310,12 +339,6 @@ public class StructureEventHandler {
             path = path.substring(namespace.length() + 1);
         }
         return ResourceLocation.fromNamespaceAndPath(namespace, path);
-    }
-
-    private boolean isProtectedItem(ItemEntity item) {
-        return item.getItem().getItem() instanceof BlockItem blockItem &&
-                (STRUCTURE_BLOCKS.contains(blockItem.getBlock()) ||
-                        PROTECTED_BLOCKS.contains(blockItem.getBlock()));
     }
 
     private static StructureEventHandler INSTANCE;
@@ -356,6 +379,55 @@ public class StructureEventHandler {
                 event.getPlayer().displayClientMessage(Component.translatable("message.structures_tweaker.no_creative_flight"), true);
                 event.setCanceled(true);
                 event.setFlightState(false);
+                return true;
+            }
+            return false;
+        });
+    }
+    
+    @SubscribeEvent
+    public void onEnderPearlTeleport(EntityTeleportEvent.EnderPearl event) {
+        if (!configManager.isReady()) {
+            return;
+        }
+        
+        Player player = event.getPlayer();
+        if (player == null || player.level().isClientSide()) {
+            return;
+        }
+        
+        BlockPos targetPos = new BlockPos((int)event.getTargetX(), (int)event.getTargetY(), (int)event.getTargetZ());
+        
+        handleStructureEvent(player.level(), targetPos, (structure, flags) -> {
+            if (!flags.allowEnderTeleportation()) {
+                event.setCanceled(true);
+                player.displayClientMessage(Component.translatable("message.structures_tweaker.no_ender_teleportation"), true);
+                return true;
+            }
+            return false;
+        });
+    }
+    
+    @SubscribeEvent
+    public void onChorusFruitTeleport(EntityTeleportEvent.ChorusFruit event) {
+        if (!configManager.isReady()) {
+            return;
+        }
+        
+        if (!(event.getEntityLiving() instanceof Player player)) {
+            return;
+        }
+        
+        if (player.level().isClientSide()) {
+            return;
+        }
+        
+        BlockPos targetPos = new BlockPos((int)event.getTargetX(), (int)event.getTargetY(), (int)event.getTargetZ());
+        
+        handleStructureEvent(player.level(), targetPos, (structure, flags) -> {
+            if (!flags.allowEnderTeleportation()) {
+                event.setCanceled(true);
+                player.displayClientMessage(Component.translatable("message.structures_tweaker.no_ender_teleportation"), true);
                 return true;
             }
             return false;

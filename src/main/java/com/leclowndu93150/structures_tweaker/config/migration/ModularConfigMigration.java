@@ -63,9 +63,9 @@ public class ModularConfigMigration {
             List<String> obsoleteProperties = new ArrayList<>();
             boolean needsUpdate = false;
 
-            // Find new properties
+            // Find new properties (either not in registeredProperties or not in config)
             for (String prop : currentProperties) {
-                if (!existingProperties.contains(prop) && !configObject.has(prop)) {
+                if (!existingProperties.contains(prop) || !configObject.has(prop)) {
                     newProperties.add(prop);
                     needsUpdate = true;
                 }
@@ -107,7 +107,8 @@ public class ModularConfigMigration {
 
                 if (json.has("individualOverrides") && json.get("individualOverrides").isJsonObject()) {
                     JsonObject overrides = json.getAsJsonObject("individualOverrides");
-                    return ModularStructureConfig.fromJson(overrides);
+                    // Don't apply defaults for override configs - they inherit from global
+                    return ModularStructureConfig.fromJson(overrides, false);
                 }
 
                 JsonObject configObject = extractConfigObject(json);
