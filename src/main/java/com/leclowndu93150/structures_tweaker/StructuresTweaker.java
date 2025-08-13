@@ -1,5 +1,6 @@
 package com.leclowndu93150.structures_tweaker;
 
+import com.leclowndu93150.baguettelib.event.entity.CreativeFlightEvent;
 import com.leclowndu93150.structures_tweaker.cache.StructureCache;
 import com.leclowndu93150.structures_tweaker.command.ShowStructureCommand;
 import com.leclowndu93150.structures_tweaker.config.core.StructureConfigManager;

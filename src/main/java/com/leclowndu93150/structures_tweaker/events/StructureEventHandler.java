@@ -1,5 +1,6 @@
 package com.leclowndu93150.structures_tweaker.events;
 
+import com.leclowndu93150.baguettelib.event.entity.CreativeFlightEvent;
 import com.leclowndu93150.structures_tweaker.StructuresTweaker;
 import com.leclowndu93150.structures_tweaker.cache.StructureCache;
 import com.leclowndu93150.structures_tweaker.config.core.StructureConfig;
@@ -334,6 +335,31 @@ public class StructureEventHandler {
             return false;
         });
         return shouldCancel.get();
+    }
+    
+    @SubscribeEvent
+    public void onCreativeFlightToggle(CreativeFlightEvent.Toggle event) {
+        if (!configManager.isReady()) {
+            return;
+        }
+        
+        if (!(event.getPlayer().level() instanceof ServerLevel)) {
+            return;
+        }
+
+        if (!event.isEnablingFlight()) {
+            return;
+        }
+        
+        handleStructureEvent(event.getPlayer().level(), event.getPlayer().blockPosition(), (structure, flags) -> {
+            if (!flags.allowCreativeFlight()) {
+                event.getPlayer().displayClientMessage(Component.translatable("message.structures_tweaker.no_creative_flight"), true);
+                event.setCanceled(true);
+                event.setFlightState(false);
+                return true;
+            }
+            return false;
+        });
     }
 
 }

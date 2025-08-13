@@ -102,6 +102,7 @@ dependencies {
     runtimeOnly(files("libs/undergarden_additional_structures.jar"))
     implementation(files("libs/portingdeadlibs-1.0.9.jar"))
     runtimeOnly "curse.maven:the-undergarden-379849:5769852"
+    implementation "curse.maven:baguettelib-1264423:6882611"
 }
 
 // This block of code expands all declared replace properties in the specified resource targets.

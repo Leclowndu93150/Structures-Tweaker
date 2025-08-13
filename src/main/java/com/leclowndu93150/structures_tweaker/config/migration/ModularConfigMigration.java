@@ -31,12 +31,12 @@ public class ModularConfigMigration {
             if (!Files.exists(configDir)) {
                 return;
             }
-            
-            Files.walk(configDir)
-                    .filter(Files::isRegularFile)
-                    .filter(path -> path.toString().endsWith(".json"))
-                    .forEach(ModularConfigMigration::migrateConfig);
-        } catch (IOException e) {
+
+            Path globalConfigPath = configDir.resolve("global.json");
+            if (Files.exists(globalConfigPath)) {
+                migrateConfig(globalConfigPath);
+            }
+        } catch (Exception e) {
             LOGGER.error("Error during config migration: {}", e.getMessage());
         }
     }
@@ -62,7 +62,7 @@ public class ModularConfigMigration {
             List<String> newProperties = new ArrayList<>();
             List<String> obsoleteProperties = new ArrayList<>();
             boolean needsUpdate = false;
-            
+
             // Find new properties
             for (String prop : currentProperties) {
                 if (!existingProperties.contains(prop) && !configObject.has(prop)) {
@@ -104,28 +104,30 @@ public class ModularConfigMigration {
             try {
                 String content = Files.readString(configPath);
                 JsonObject json = JsonParser.parseString(content).getAsJsonObject();
-                
+
+                if (json.has("individualOverrides") && json.get("individualOverrides").isJsonObject()) {
+                    JsonObject overrides = json.getAsJsonObject("individualOverrides");
+                    return ModularStructureConfig.fromJson(overrides);
+                }
+
                 JsonObject configObject = extractConfigObject(json);
-                
                 ModularStructureConfig config = ModularStructureConfig.fromJson(configObject);
-                config.applyMissingDefaults();
                 return config;
                 
             } catch (IOException | JsonSyntaxException e) {
                 LOGGER.error("Failed to load config {}: {}", configPath, e.getMessage());
             }
         }
-        
+
         ModularStructureConfig preset = StructureConfigPresets.getPreset(modId, structureId);
         if (preset != null) {
             return preset;
         }
-        
+
         return new ModularStructureConfig();
     }
     
     private static JsonObject extractConfigObject(JsonObject json) {
-        // Handle old ConfigMigration format with nested "config" : { ...actual config... }
         if (json.has("config")) {
             JsonElement configElement = json.get("config");
             if (configElement.isJsonObject()) {
@@ -136,8 +138,7 @@ public class ModularConfigMigration {
                 }
             }
         }
-        
-        // Check for old version migration fields
+
         if (json.has("configVersion")) {
             JsonObject result = new JsonObject();
             for (var entry : json.entrySet()) {

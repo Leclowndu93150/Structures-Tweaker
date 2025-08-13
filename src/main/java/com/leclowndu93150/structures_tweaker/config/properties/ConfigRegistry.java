@@ -54,6 +54,10 @@ public class ConfigRegistry {
         "allowRiptide", true, Boolean.class, "Allow riptide trident usage in structure"
     );
     
+    public static final ConfigProperty<Boolean> ALLOW_CREATIVE_FLIGHT = register(
+        "allowCreativeFlight", true, Boolean.class, "Allow creative flight in structure"
+    );
+    
     public static <T> ConfigProperty<T> register(String key, T defaultValue, Class<T> type, String description) {
         ConfigProperty<T> property = new ConfigProperty<>(key, defaultValue, type, description);
         PROPERTIES.put(key, property);

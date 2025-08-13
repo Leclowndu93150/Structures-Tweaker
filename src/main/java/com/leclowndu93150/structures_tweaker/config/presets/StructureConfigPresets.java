@@ -11,15 +11,19 @@ public class StructureConfigPresets {
     
     static {
 
-        //Default presets for DAS and UAS structures by Veydiz
-
-        Map<ConfigProperty<?>, Object> protectedSpawnerChanges = Map.of(
-            ConfigRegistry.CAN_BREAK_BLOCKS, false,
-            ConfigRegistry.CAN_PLACE_BLOCKS, false,
-            ConfigRegistry.ALLOW_ELYTRA_FLIGHT, false,
-            ConfigRegistry.ALLOW_ENDER_PEARLS, false,
-            ConfigRegistry.ALLOW_RIPTIDE, false
-        );
+        Map<ConfigProperty<?>, Object> protectedSpawnerChanges = new HashMap<>();
+        protectedSpawnerChanges.put(ConfigRegistry.CAN_BREAK_BLOCKS, false);           // was false
+        protectedSpawnerChanges.put(ConfigRegistry.CAN_INTERACT, true);               // was true  
+        protectedSpawnerChanges.put(ConfigRegistry.CAN_PLACE_BLOCKS, false);          // was false
+        protectedSpawnerChanges.put(ConfigRegistry.ALLOW_PLAYER_PVP, true);           // was true
+        protectedSpawnerChanges.put(ConfigRegistry.ALLOW_CREATURE_SPAWNING, true);    // was true
+        protectedSpawnerChanges.put(ConfigRegistry.ALLOW_FIRE_SPREAD, true);          // was true
+        protectedSpawnerChanges.put(ConfigRegistry.ALLOW_EXPLOSIONS, true);           // was true
+        protectedSpawnerChanges.put(ConfigRegistry.ALLOW_ITEM_PICKUP, true);          // was true
+        protectedSpawnerChanges.put(ConfigRegistry.ONLY_PROTECT_ORIGINAL_BLOCKS, false); // was false
+        protectedSpawnerChanges.put(ConfigRegistry.ALLOW_ELYTRA_FLIGHT, false);       // was false
+        protectedSpawnerChanges.put(ConfigRegistry.ALLOW_ENDER_PEARLS, false);        // was false
+        protectedSpawnerChanges.put(ConfigRegistry.ALLOW_RIPTIDE, false);             // was false
         
         registerPreset("das", "deep_fortress", protectedSpawnerChanges);
         registerPreset("das", "deep_spawner_1", protectedSpawnerChanges);
@@ -36,7 +40,8 @@ public class StructureConfigPresets {
      * Register a preset by only specifying values that differ from defaults
      */
     public static void registerPreset(String modId, String structureId, Map<ConfigProperty<?>, Object> changes) {
-        MOD_PRESETS.computeIfAbsent(modId, k -> new HashMap<>()).put(structureId, changes);
+        Map<ConfigProperty<?>, Object> changesCopy = new HashMap<>(changes);
+        MOD_PRESETS.computeIfAbsent(modId, k -> new HashMap<>()).put(structureId, changesCopy);
     }
     
     /**
@@ -52,14 +57,30 @@ public class StructureConfigPresets {
     
     /**
      * Get a preset config for a specific mod and structure
+     * Returns a config with only the preset values, designed to work with global inheritance
      */
     public static ModularStructureConfig getPreset(String modId, String structureId) {
         Map<String, Map<ConfigProperty<?>, Object>> modPresets = MOD_PRESETS.get(modId);
         if (modPresets != null) {
             Map<ConfigProperty<?>, Object> changes = modPresets.get(structureId);
             if (changes != null) {
-                return createPreset(changes);
+                ModularStructureConfig config = new ModularStructureConfig();
+                for (Map.Entry<ConfigProperty<?>, Object> entry : changes.entrySet()) {
+                    config.setValue(entry.getKey().getKey(), entry.getValue());
+                }
+                return config;
             }
+        }
+        return null;
+    }
+    
+    /**
+     * Get just the preset changes (not a full config)
+     */
+    public static Map<ConfigProperty<?>, Object> getPresetChanges(String modId, String structureId) {
+        Map<String, Map<ConfigProperty<?>, Object>> modPresets = MOD_PRESETS.get(modId);
+        if (modPresets != null) {
+            return modPresets.get(structureId);
         }
         return null;
     }

@@ -100,4 +100,5 @@ public class ModularStructureConfig {
     public boolean allowElytraFlight() { return getValue(ConfigRegistry.ALLOW_ELYTRA_FLIGHT); }
     public boolean allowEnderPearls() { return getValue(ConfigRegistry.ALLOW_ENDER_PEARLS); }
     public boolean allowRiptide() { return getValue(ConfigRegistry.ALLOW_RIPTIDE); }
+    public boolean allowCreativeFlight() { return getValue(ConfigRegistry.ALLOW_CREATIVE_FLIGHT); }
 }
