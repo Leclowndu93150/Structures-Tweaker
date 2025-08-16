@@ -14,7 +14,11 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.EntityType;
+import net.minecraft.world.entity.Mob;
 import net.minecraft.world.entity.MobCategory;
+import net.minecraft.world.entity.MobSpawnType;
+import net.minecraft.world.entity.ai.village.poi.PoiManager;
 import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.BlockItem;
@@ -23,6 +27,7 @@ import net.minecraft.world.item.Items;
 import net.minecraft.world.item.TridentItem;
 import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.Level;
+import net.minecraft.world.level.ServerLevelAccessor;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.levelgen.structure.Structure;
@@ -30,6 +35,7 @@ import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.neoforge.common.util.TriState;
 import net.neoforged.neoforge.event.entity.EntityTeleportEvent;
 import net.neoforged.neoforge.event.entity.living.FinalizeSpawnEvent;
+import net.neoforged.neoforge.event.entity.living.MobSpawnEvent;
 import net.neoforged.neoforge.event.entity.player.AttackEntityEvent;
 import net.neoforged.neoforge.event.entity.player.ItemEntityPickupEvent;
 import net.neoforged.neoforge.event.entity.player.PlayerInteractEvent;
@@ -178,18 +184,93 @@ public class StructureEventHandler {
         });
     }
 
-    @SubscribeEvent
-    public void onMobSpawn(FinalizeSpawnEvent event) {
-        if (event.getLevel().isClientSide() || !configManager.isReady()) return;
+      //Called too early, want to minimize the number of checks
 
-        handleStructureEvent(event.getLevel().getLevel(), event.getEntity().blockPosition(),
-                (structure, flags) -> {
-                    if (event.getEntity().getType().getCategory() == MobCategory.CREATURE && !flags.allowCreatureSpawning()) {
-                        event.setCanceled(true);
-                        return true;
-                    }
-                    return false;
-                });
+//    @SubscribeEvent
+//    public void onSpawnPlacementCheck(MobSpawnEvent.SpawnPlacementCheck event) {
+//        if (event.getSpawnType() == MobSpawnType.SPAWNER || event.getSpawnType() == MobSpawnType.SPAWN_EGG || event.getSpawnType() == MobSpawnType.COMMAND) {
+//            return;
+//        }
+//
+//        ServerLevelAccessor levelAccessor = event.getLevel();
+//        if (!(levelAccessor instanceof Level level)) {
+//            return;
+//        }
+//
+//        BlockPos pos = event.getPos();
+//        EntityType<?> entityType = event.getEntityType();
+//
+//        handleStructureEvent(level, pos, (structure, flags) -> {
+//            if (!flags.allowCreatureSpawning()) {
+//                event.setResult(MobSpawnEvent.SpawnPlacementCheck.Result.FAIL);
+//                return true;
+//            }
+//
+//            MobCategory category = entityType.getCategory();
+//
+//            if (flags.preventHostileSpawns() && isHostileMob(category)) {
+//                event.setResult(MobSpawnEvent.SpawnPlacementCheck.Result.FAIL);
+//                return true;
+//            }
+//
+//            if (flags.preventPassiveSpawns() && isPassiveMob(category)) {
+//                event.setResult(MobSpawnEvent.SpawnPlacementCheck.Result.FAIL);
+//                return true;
+//            }
+//
+//            return false;
+//        });
+//    }
+    
+    @SubscribeEvent
+    public void onPositionCheck(MobSpawnEvent.PositionCheck event) {
+        if (event.getSpawnType() == MobSpawnType.SPAWNER || 
+            event.getSpawnType() == MobSpawnType.SPAWN_EGG ||
+            event.getSpawnType() == MobSpawnType.COMMAND) {
+            return;
+        }
+        
+        Mob entity = event.getEntity();
+        ServerLevelAccessor levelAccessor = event.getLevel();
+        if (!(levelAccessor instanceof Level level)) {
+            return;
+        }
+        
+        BlockPos pos = entity.blockPosition();
+
+        handleStructureEvent(level, pos, (structure, flags) -> {
+            if (!flags.allowCreatureSpawning()) {
+                event.setResult(MobSpawnEvent.PositionCheck.Result.FAIL);
+                return true;
+            }
+
+            MobCategory category = entity.getType().getCategory();
+
+            if (flags.preventHostileSpawns() && isHostileMob(category)) {
+                event.setResult(MobSpawnEvent.PositionCheck.Result.FAIL);
+                return true;
+            }
+
+            if (flags.preventPassiveSpawns() && isPassiveMob(category)) {
+                event.setResult(MobSpawnEvent.PositionCheck.Result.FAIL);
+                return true;
+            }
+            
+            return false;
+        });
+    }
+    
+    private boolean isHostileMob(MobCategory category) {
+        return category == MobCategory.MONSTER || 
+               category == MobCategory.UNDERGROUND_WATER_CREATURE;
+    }
+    
+    private boolean isPassiveMob(MobCategory category) {
+        return category == MobCategory.CREATURE || 
+               category == MobCategory.WATER_CREATURE ||
+               category == MobCategory.AMBIENT ||
+               category == MobCategory.AXOLOTLS ||
+               category == MobCategory.WATER_AMBIENT;
     }
 
     @SubscribeEvent
@@ -231,33 +312,21 @@ public class StructureEventHandler {
 
     public void handleStructureEvent(Level level, BlockPos pos, BiPredicate<ResourceLocation, DynamicStructureFlags> callback) {
 
-        if (Thread.currentThread().getName().contains("worldgen")) {
-            return;
-        }
-        if (!configManager.isReady() || !level.hasChunkAt(pos)) {
-            return;
-        }
-        if (!(level instanceof ServerLevel serverLevel)) {
+        if (Thread.currentThread().getName().contains("worldgen") || 
+            !configManager.isReady() || 
+            !level.hasChunkAt(pos) ||
+            !(level instanceof ServerLevel serverLevel)) {
             return;
         }
 
-        ResourceLocation cached = structureCache.getStructureAt(level, pos);
+        ResourceLocation cached = structureCache.getStructureAtPosition(level, pos);
         if (cached != null) {
             DynamicStructureFlags flags = structureFlags.get(cached);
             if (flags != null) {
-                var registry = level.registryAccess().registryOrThrow(Registries.STRUCTURE);
-                for (var structure : registry) {
-                    ResourceLocation id = registry.getKey(structure);
-                    if (id != null && id.equals(cached)) {
-                        var reference = serverLevel.structureManager().getStructureAt(pos, structure);
-                        if (reference.isValid()) {
-                            DefeatedStructuresData data = DefeatedStructuresData.get(serverLevel);
-                            if (data.isDefeated(id, reference.getBoundingBox())) {
-                                return;
-                            }
-                        }
-                        break;
-                    }
+                DefeatedStructuresData data = DefeatedStructuresData.get(serverLevel);
+                var bounds = structureCache.getCachedBounds(level, cached, pos);
+                if (bounds != null && data.isDefeated(cached, bounds)) {
+                    return;
                 }
                 callback.test(cached, flags);
             }
@@ -275,12 +344,17 @@ public class StructureEventHandler {
             if (reference.isValid()) {
                 foundStructure = true;
                 id = normalizeStructureId(id);
-
-                structureCache.cacheStructure(level, pos, id, reference.getBoundingBox());
+                
+                var bounds = reference.getBoundingBox();
+                structureCache.cacheStructure(level, pos, id, bounds);
+                structureCache.cacheStructureBounds(level, id, bounds);
 
                 DynamicStructureFlags flags = structureFlags.get(id);
                 if (flags != null) {
-                    callback.test(id, flags);
+                    DefeatedStructuresData data = DefeatedStructuresData.get(serverLevel);
+                    if (!data.isDefeated(id, bounds)) {
+                        callback.test(id, flags);
+                    }
                 }
                 break;
             }
@@ -289,8 +363,8 @@ public class StructureEventHandler {
         if (!foundStructure) {
             EmptyChunksData.get(serverLevel).markEmpty(new ChunkPos(pos));
         }
-
     }
+    
 
     @SubscribeEvent
     public void onItemUse(PlayerInteractEvent.RightClickItem event) {

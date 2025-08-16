@@ -45,6 +45,8 @@ public class DynamicStructureFlags {
     public boolean allowRiptide() { return getValue(ConfigRegistry.ALLOW_RIPTIDE); }
     public boolean allowCreativeFlight() { return getValue(ConfigRegistry.ALLOW_CREATIVE_FLIGHT); }
     public boolean allowEnderTeleportation() { return getValue(ConfigRegistry.ALLOW_ENDER_TELEPORTATION); }
+    public boolean preventHostileSpawns() { return getValue(ConfigRegistry.PREVENT_HOSTILE_SPAWNS); }
+    public boolean preventPassiveSpawns() { return getValue(ConfigRegistry.PREVENT_PASSIVE_SPAWNS); }
     
     @SuppressWarnings("unchecked")
     public List<String> getInteractionWhitelist() { 

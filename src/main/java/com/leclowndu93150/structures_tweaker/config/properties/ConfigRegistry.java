@@ -26,6 +26,14 @@ public class ConfigRegistry {
         "allowCreatureSpawning", true, Boolean.class, "Allow mob spawning in structure"
     );
     
+    public static final ConfigProperty<Boolean> PREVENT_HOSTILE_SPAWNS = register(
+        "preventHostileSpawns", false, Boolean.class, "Prevent hostile mob spawning in structure"
+    );
+    
+    public static final ConfigProperty<Boolean> PREVENT_PASSIVE_SPAWNS = register(
+        "preventPassiveSpawns", false, Boolean.class, "Prevent passive mob spawning in structure"
+    );
+    
     public static final ConfigProperty<Boolean> ALLOW_FIRE_SPREAD = register(
         "allowFireSpread", true, Boolean.class, "Allow fire to spread in structure"
     );
