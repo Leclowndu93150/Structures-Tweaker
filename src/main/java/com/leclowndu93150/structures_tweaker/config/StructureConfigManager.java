@@ -2,6 +2,8 @@ package com.leclowndu93150.structures_tweaker.config;
 
 import com.google.gson.*;
 import com.leclowndu93150.structures_tweaker.StructuresTweaker;
+import com.leclowndu93150.structures_tweaker.config.core.*;
+import com.leclowndu93150.structures_tweaker.config.migration.ModularConfigMigration;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.MinecraftServer;
@@ -18,77 +20,22 @@ import java.util.concurrent.ConcurrentHashMap;
 
 public class StructureConfigManager {
     private static final Path CONFIG_DIR = Path.of("config", StructuresTweaker.MODID);
+    private static final Path GLOBAL_CONFIG_PATH = CONFIG_DIR.resolve("global.json");
     private final Map<ResourceLocation, StructureConfig> configCache = new ConcurrentHashMap<>();
+    private GlobalStructureConfig globalConfig;
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
     private volatile boolean configsLoaded = false;
     private static final Logger LOGGER = LogManager.getLogger();
 
-    private final Map<String, Map<String, StructureConfig>> customModConfigs = new HashMap<>();
-
     public StructureConfigManager() {
-        registerCustomModConfig("das", Map.of(
-                "deep_fortress", createCustomConfig(false, true, false, true, true, true, true, true, false, false, false, false)
-        ));
-        registerCustomModConfig("das", Map.of(
-                "deep_spawner_1", createCustomConfig(false, true, false, true, true, true, true, true, false, false, false, false)
-        ));
-        registerCustomModConfig("das", Map.of(
-                "deep_spawner_2", createCustomConfig(false, true, false, true, true, true, true, true, false, false, false, false)
-        ));
-        registerCustomModConfig("das", Map.of(
-                "deep_spawner_3", createCustomConfig(false, true, false, true, true, true, true, true, false, false, false, false)
-        ));
-
-        registerCustomModConfig("uas", Map.of(
-                "carousel_spawner_1", createCustomConfig(false, true, false, true, true, true, true, true, false, false, false, false)
-        ));
-        registerCustomModConfig("uas", Map.of(
-                "carousel_spawner_2", createCustomConfig(false, true, false, true, true, true, true, true, false, false, false, false)
-        ));
-        registerCustomModConfig("uas", Map.of(
-                "carousel_spawner_3", createCustomConfig(false, true, false, true, true, true, true, true, false, false, false, false)
-        ));
-        registerCustomModConfig("uas", Map.of(
-                "garden_fortress", createCustomConfig(false, true, false, true, true, true, true, true, false, false, false, false)
-        ));
-    }
-
-    private StructureConfig createCustomConfig(boolean canBreakBlocks, boolean canInteract, boolean canPlaceBlocks,
-                                               boolean allowPlayerPVP, boolean allowCreatureSpawning, boolean allowFireSpread,
-                                               boolean allowExplosions, boolean allowItemPickup, boolean onlyProtectOriginalBlocks,
-                                               boolean allowElytraFlight, boolean allowEnderPearls, boolean allowRiptide) {
-        StructureConfig config = new StructureConfig();
-        try {
-            var fields = StructureConfig.class.getDeclaredFields();
-            for (var field : fields) {
-                field.setAccessible(true);
-                switch (field.getName()) {
-                    case "canBreakBlocks" -> field.set(config, canBreakBlocks);
-                    case "canInteract" -> field.set(config, canInteract);
-                    case "canPlaceBlocks" -> field.set(config, canPlaceBlocks);
-                    case "allowPlayerPVP" -> field.set(config, allowPlayerPVP);
-                    case "allowCreatureSpawning" -> field.set(config, allowCreatureSpawning);
-                    case "allowFireSpread" -> field.set(config, allowFireSpread);
-                    case "allowExplosions" -> field.set(config, allowExplosions);
-                    case "allowItemPickup" -> field.set(config, allowItemPickup);
-                    case "onlyProtectOriginalBlocks" -> field.set(config, onlyProtectOriginalBlocks);
-                    case "allowElytraFlight" -> field.set(config, allowElytraFlight);
-                    case "allowEnderPearls" -> field.set(config, allowEnderPearls);
-                    case "allowRiptide" -> field.set(config, allowRiptide);
-                }
-            }
-        } catch (Exception e) {
-            LOGGER.error("Failed to create custom config: {}", e.getMessage());
-        }
-        return config;
-    }
-
-    public void registerCustomModConfig(String modId, Map<String, StructureConfig> configs) {
-        customModConfigs.put(modId, configs);
     }
 
     public void generateConfigs() {
-        ConfigMigration.migrateConfigs(CONFIG_DIR);
+        loadOrCreateGlobalConfig();
+
+        ConfigDocumentationGenerator.generateReadmeAndDocumentation(CONFIG_DIR);
+        
+        ModularConfigMigration.migrateAllConfigs(CONFIG_DIR);
 
         MinecraftServer server = ServerLifecycleHooks.getCurrentServer();
         if (server == null) {
@@ -105,8 +52,13 @@ public class StructureConfigManager {
                 try {
                     Files.createDirectories(configPath.getParent());
                     if (!Files.exists(configPath)) {
-                        StructureConfig config = getCustomConfigOrDefault(id);
-                        ConfigMigration.ConfigWrapper wrapper = new ConfigMigration.ConfigWrapper(config);
+                        ModularStructureConfig individualConfig = ModularConfigMigration.loadOrCreateConfig(
+                            configPath, id.getNamespace(), id.getPath()
+                        );
+
+                        IndividualConfigWrapper wrapper = new IndividualConfigWrapper(
+                            individualConfig, globalConfig
+                        );
                         String json = GSON.toJson(wrapper);
                         Files.writeString(configPath, json);
                     }
@@ -117,25 +69,18 @@ public class StructureConfigManager {
         });
     }
 
-    private StructureConfig getCustomConfigOrDefault(ResourceLocation id) {
-        Map<String, StructureConfig> modConfigs = customModConfigs.get(id.getNamespace());
-        if (modConfigs != null) {
-            StructureConfig config = modConfigs.get(id.getPath());
-            if (config != null) {
-                return config;
-            }
-        }
-        return new StructureConfig();
-    }
-
     public void loadConfigs() {
         configCache.clear();
         configsLoaded = false;
+        
+        // Load global config first
+        loadOrCreateGlobalConfig();
 
         try {
             Files.walk(CONFIG_DIR)
                     .filter(Files::isRegularFile)
                     .filter(path -> path.toString().endsWith(".json"))
+                    .filter(path -> !path.equals(GLOBAL_CONFIG_PATH)) // Skip global config
                     .forEach(path -> {
                         try {
                             String relativePath = CONFIG_DIR.relativize(path).toString().replace('\\', '/');
@@ -152,31 +97,21 @@ public class StructureConfigManager {
                                 return;
                             }
 
-                            String content = Files.readString(path);
-                            JsonObject json = JsonParser.parseString(content).getAsJsonObject();
-
-                            StructureConfig config;
-                            if (json.has("config")) {
-                                JsonElement configElement = json.get("config");
-                                if (configElement != null && configElement.isJsonObject()) {
-                                    config = GSON.fromJson(configElement, StructureConfig.class);
-                                } else {
-                                    LOGGER.error("Invalid config format for {}: config field is not an object", id);
-                                    return;
-                                }
-                            } else {
-                                config = GSON.fromJson(json, StructureConfig.class);
-                            }
-
-                            if (config != null) {
-                                configCache.put(id, config);
+                            // Load individual config and merge with global
+                            ModularStructureConfig individualConfig = ModularConfigMigration.loadOrCreateConfig(
+                                path, parts[0], parts[1]
+                            );
+                            
+                            if (individualConfig != null) {
+                                // Create inherited config that combines global + individual
+                                // Use only explicitly set values, not defaults
+                                InheritedStructureConfig inherited = new InheritedStructureConfig(
+                                    globalConfig, individualConfig.getExplicitlySetValues()
+                                );
+                                configCache.put(id, inherited);
                             } else {
                                 LOGGER.error("Failed to parse config for {}", id);
                             }
-                        } catch (IOException e) {
-                            LOGGER.error("Error loading config {}: {}", path, e.getMessage());
-                        } catch (JsonSyntaxException e) {
-                            LOGGER.error("Invalid JSON in config {}: {}", path, e.getMessage());
                         } catch (Exception e) {
                             LOGGER.error("Unexpected error loading config {}: {}", path, e.getMessage());
                         }
@@ -186,7 +121,7 @@ public class StructureConfigManager {
         }
 
         configsLoaded = true;
-        LOGGER.info("Loaded {} structure configs", configCache.size());
+        LOGGER.info("Loaded global config and {} structure configs", configCache.size());
     }
 
     public boolean isReady() {
@@ -202,5 +137,65 @@ public class StructureConfigManager {
 
     public Map<ResourceLocation, StructureConfig> getAllConfigs() {
         return configCache;
+    }
+    
+    public GlobalStructureConfig getGlobalConfig() {
+        return globalConfig;
+    }
+    
+    private void loadOrCreateGlobalConfig() {
+        try {
+            Files.createDirectories(CONFIG_DIR);
+            
+            if (Files.exists(GLOBAL_CONFIG_PATH)) {
+                String content = Files.readString(GLOBAL_CONFIG_PATH);
+                JsonObject json = JsonParser.parseString(content).getAsJsonObject();
+                
+                JsonObject configObject;
+                if (json.has("config") && json.get("config").isJsonObject()) {
+                    configObject = json.getAsJsonObject("config");
+                } else {
+                    configObject = json;
+                }
+                
+                ModularStructureConfig modular = ModularStructureConfig.fromJson(configObject);
+                globalConfig = new GlobalStructureConfig(modular.getAllValues());
+                
+            } else {
+                globalConfig = new GlobalStructureConfig();
+
+                ModularConfigMigration.ConfigWrapper wrapper = new ModularConfigMigration.ConfigWrapper(globalConfig);
+                Files.writeString(GLOBAL_CONFIG_PATH, GSON.toJson(wrapper));
+                LOGGER.info("Created default global config at {}", GLOBAL_CONFIG_PATH);
+            }
+            
+        } catch (IOException e) {
+            LOGGER.error("Failed to load/create global config: {}", e.getMessage());
+            globalConfig = new GlobalStructureConfig();
+        }
+    }
+    
+    /**
+     * Wrapper for individual configs that only saves properties different from global
+     */
+    public static class IndividualConfigWrapper {
+        private final Map<String, Object> individualOverrides;
+        private final String note;
+        
+        public IndividualConfigWrapper(ModularStructureConfig individual, GlobalStructureConfig global) {
+            this.individualOverrides = new HashMap<>();
+            this.note = "Only properties that differ from global config are saved here. See global.json for defaults.";
+            
+            // Only include properties that differ from global defaults
+            for (var entry : individual.getAllValues().entrySet()) {
+                String key = entry.getKey();
+                Object individualValue = entry.getValue();
+                Object globalValue = global.getAllValues().get(key);
+                
+                if (!java.util.Objects.equals(individualValue, globalValue)) {
+                    individualOverrides.put(key, individualValue);
+                }
+            }
+        }
     }
 }

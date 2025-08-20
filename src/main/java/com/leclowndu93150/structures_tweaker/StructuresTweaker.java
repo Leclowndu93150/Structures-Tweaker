@@ -46,13 +46,11 @@ public class StructuresTweaker {
         configManager.generateConfigs();
         configManager.loadConfigs();
         structureEventHandler.reloadFlags();
-
     }
 
     @SubscribeEvent
     public void onServerStopped(ServerStoppedEvent event) {
         structureCache.clearCache();
-        LOGGER.info("StructuresTweaker cache cleared");
     }
 
 }

@@ -1,34 +1,35 @@
-package com.leclowndu93150.structures_tweaker.config;
+package com.leclowndu93150.structures_tweaker.events;
 
-import com.leclowndu93150.structures_tweaker.config.core.ModularStructureConfig;
+import com.leclowndu93150.structures_tweaker.config.StructureConfig;
 import com.leclowndu93150.structures_tweaker.config.properties.ConfigProperty;
 import com.leclowndu93150.structures_tweaker.config.properties.ConfigRegistry;
 
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-public class StructureConfig extends ModularStructureConfig {
+/**
+ * Dynamic flags for structure event handling
+ * Allows for efficient flag lookups during event processing
+ */
+public class DynamicStructureFlags {
+    private final Map<String, Object> flags = new HashMap<>();
     
-    public StructureConfig() {
-        super();
+    public DynamicStructureFlags(StructureConfig config) {
+        for (ConfigProperty<?> property : ConfigRegistry.getAllProperties().values()) {
+            flags.put(property.getKey(), config.getValue(property));
+        }
     }
     
-    public StructureConfig(Map<String, Object> values) {
-        super(values);
+    @SuppressWarnings("unchecked")
+    private <T> T getValue(ConfigProperty<T> property) {
+        return (T) flags.get(property.getKey());
     }
-    
-    /**
-     * Create a StructureConfig from a ModularStructureConfig
-     */
-    public static StructureConfig fromModular(ModularStructureConfig modular) {
-        return new StructureConfig(modular.getAllValues());
-    }
-    
-    // Convenience methods for accessing config properties
+
     public boolean canBreakBlocks() { return getValue(ConfigRegistry.CAN_BREAK_BLOCKS); }
     public boolean canInteract() { return getValue(ConfigRegistry.CAN_INTERACT); }
     public boolean canPlaceBlocks() { return getValue(ConfigRegistry.CAN_PLACE_BLOCKS); }
-    public boolean allowPlayerPVP() { return getValue(ConfigRegistry.ALLOW_PLAYER_PVP); }
+    public boolean allowPlayerPvP() { return getValue(ConfigRegistry.ALLOW_PLAYER_PVP); }
     public boolean allowCreatureSpawning() { return getValue(ConfigRegistry.ALLOW_CREATURE_SPAWNING); }
     public boolean allowFireSpread() { return getValue(ConfigRegistry.ALLOW_FIRE_SPREAD); }
     public boolean allowExplosions() { return getValue(ConfigRegistry.ALLOW_EXPLOSIONS); }
@@ -43,14 +44,26 @@ public class StructureConfig extends ModularStructureConfig {
     public boolean preventPassiveSpawns() { return getValue(ConfigRegistry.PREVENT_PASSIVE_SPAWNS); }
     
     @SuppressWarnings("unchecked")
-    public List<String> getInteractionWhitelist() { return getValue(ConfigRegistry.INTERACTION_WHITELIST); }
+    public List<String> getInteractionWhitelist() { 
+        return getValue(ConfigRegistry.INTERACTION_WHITELIST); 
+    }
     
     @SuppressWarnings("unchecked")
-    public List<String> getInteractionBlacklist() { return getValue(ConfigRegistry.INTERACTION_BLACKLIST); }
+    public List<String> getInteractionBlacklist() { 
+        return getValue(ConfigRegistry.INTERACTION_BLACKLIST); 
+    }
     
     @SuppressWarnings("unchecked")
-    public List<String> getItemUseBlacklist() { return getValue(ConfigRegistry.ITEM_USE_BLACKLIST); }
+    public List<String> getItemUseBlacklist() { 
+        return getValue(ConfigRegistry.ITEM_USE_BLACKLIST); 
+    }
     
     @SuppressWarnings("unchecked")
-    public List<String> getItemUseWhitelist() { return getValue(ConfigRegistry.ITEM_USE_WHITELIST); }
+    public List<String> getItemUseWhitelist() { 
+        return getValue(ConfigRegistry.ITEM_USE_WHITELIST); 
+    }
+    
+    public Map<String, Object> getAllFlags() {
+        return new HashMap<>(flags);
+    }
 }
