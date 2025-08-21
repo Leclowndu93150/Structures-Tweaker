@@ -1,6 +1,5 @@
 package com.leclowndu93150.structures_tweaker.events;
 
-import com.leclowndu93150.baguettelib.event.entity.CreativeFlightEvent;
 import com.leclowndu93150.structures_tweaker.StructuresTweaker;
 import com.leclowndu93150.structures_tweaker.cache.StructureCache;
 import com.leclowndu93150.structures_tweaker.config.StructureConfigManager;
@@ -13,44 +12,56 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.Entity;
-import net.minecraft.world.entity.Mob;
+import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.MobCategory;
-import net.minecraft.world.entity.MobSpawnType;
 import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.item.TridentItem;
 import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.Level;
-import net.minecraft.world.level.ServerLevelAccessor;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.levelgen.structure.Structure;
-import net.minecraftforge.event.entity.EntityTeleportEvent;
+import net.minecraftforge.event.entity.EntityMountEvent;
 import net.minecraftforge.event.entity.living.MobSpawnEvent;
 import net.minecraftforge.event.entity.player.AttackEntityEvent;
-import net.minecraftforge.event.entity.player.PlayerEvent;
+import net.minecraftforge.event.entity.player.EntityItemPickupEvent;
 import net.minecraftforge.event.entity.player.PlayerInteractEvent;
 import net.minecraftforge.event.level.BlockEvent;
 import net.minecraftforge.event.level.ExplosionEvent;
 import net.minecraftforge.event.server.ServerStoppedEvent;
+import net.minecraftforge.eventbus.api.Event;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.concurrent.ConcurrentHashMap;
+import java.util.Set;
+import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiPredicate;
 
 public class StructureEventHandler {
     private final StructureConfigManager configManager;
     private final StructureCache structureCache;
-    private final Map<ResourceLocation, DynamicStructureFlags> structureFlags;
+    private final Map<ResourceLocation, StructureEventFlags> structureFlags;
 
     private static final Logger LOGGER = LogManager.getLogger(StructuresTweaker.MODID);
+
+    private static final Set<Block> STRUCTURE_BLOCKS = Set.of(
+            Blocks.STRUCTURE_BLOCK, Blocks.STRUCTURE_VOID, Blocks.COMMAND_BLOCK,
+            Blocks.CHAIN_COMMAND_BLOCK, Blocks.REPEATING_COMMAND_BLOCK,
+            Blocks.END_PORTAL_FRAME, Blocks.BEDROCK
+    );
+
+    private static final Set<Block> PROTECTED_BLOCKS = Set.of(
+            Blocks.CHEST, Blocks.TRAPPED_CHEST, Blocks.BARREL,
+            Blocks.DISPENSER, Blocks.DROPPER, Blocks.HOPPER,
+            Blocks.SHULKER_BOX
+    );
 
     public StructureEventHandler(StructureConfigManager configManager, StructureCache structureCache) {
         this.configManager = configManager;
@@ -62,7 +73,20 @@ public class StructureEventHandler {
         structureFlags.clear();
         configManager.getAllConfigs().forEach((id, config) -> {
             ResourceLocation normalizedId = normalizeStructureId(id);
-            structureFlags.put(normalizedId, new DynamicStructureFlags(config));
+            structureFlags.put(normalizedId, new StructureEventFlags(
+                    config.canBreakBlocks(),
+                    config.canInteract(),
+                    config.canPlaceBlocks(),
+                    config.allowPlayerPVP(),
+                    config.allowCreatureSpawning(),
+                    config.allowFireSpread(),
+                    config.allowExplosions(),
+                    config.allowItemPickup(),
+                    config.onlyProtectOriginalBlocks(),
+                    config.allowElytraFlight(),
+                    config.allowEnderPearls(),
+                    config.allowRiptide()
+            ));
         });
     }
 
@@ -130,25 +154,6 @@ public class StructureEventHandler {
         if (!configManager.isReady()) return;
 
         handleStructureEvent(event.getLevel(), event.getPos(), (structure, flags) -> {
-            Block block = event.getLevel().getBlockState(event.getPos()).getBlock();
-            ResourceLocation blockId = event.getLevel().registryAccess()
-                    .registryOrThrow(Registries.BLOCK).getKey(block);
-            
-            if (blockId != null) {
-                String blockIdStr = blockId.toString();
-                
-                List<String> whitelist = flags.getInteractionWhitelist();
-                if (whitelist != null && !whitelist.isEmpty() && whitelist.contains(blockIdStr)) {
-                    return false;
-                }
-                
-                List<String> blacklist = flags.getInteractionBlacklist();
-                if (blacklist != null && !blacklist.isEmpty() && blacklist.contains(blockIdStr)) {
-                    event.setCanceled(true);
-                    return true;
-                }
-            }
-            
             if (!flags.canInteract()) {
                 event.setCanceled(true);
                 return true;
@@ -178,54 +183,17 @@ public class StructureEventHandler {
     }
 
     @SubscribeEvent
-    public void onPositionCheck(MobSpawnEvent.PositionCheck event) {
-        if (event.getSpawnType() == MobSpawnType.SPAWNER || 
-            event.getSpawnType() == MobSpawnType.SPAWN_EGG ||
-            event.getSpawnType() == MobSpawnType.COMMAND) {
-            return;
-        }
-        
-        Mob entity = event.getEntity();
-        ServerLevelAccessor levelAccessor = event.getLevel();
-        if (!(levelAccessor instanceof Level level)) {
-            return;
-        }
-        
-        BlockPos pos = entity.blockPosition();
+    public void onMobSpawn(MobSpawnEvent.FinalizeSpawn event) {
+        if (event.getLevel().isClientSide() || !configManager.isReady()) return;
 
-        handleStructureEvent(level, pos, (structure, flags) -> {
-            if (!flags.allowCreatureSpawning()) {
-                event.setResult(MobSpawnEvent.PositionCheck.Result.DENY);
-                return true;
-            }
-
-            MobCategory category = entity.getType().getCategory();
-
-            if (flags.preventHostileSpawns() && isHostileMob(category)) {
-                event.setResult(MobSpawnEvent.PositionCheck.Result.DENY);
-                return true;
-            }
-
-            if (flags.preventPassiveSpawns() && isPassiveMob(category)) {
-                event.setResult(MobSpawnEvent.PositionCheck.Result.DENY);
-                return true;
-            }
-            
-            return false;
-        });
-    }
-    
-    private boolean isHostileMob(MobCategory category) {
-        return category == MobCategory.MONSTER || 
-               category == MobCategory.UNDERGROUND_WATER_CREATURE;
-    }
-    
-    private boolean isPassiveMob(MobCategory category) {
-        return category == MobCategory.CREATURE || 
-               category == MobCategory.WATER_CREATURE ||
-               category == MobCategory.AMBIENT ||
-               category == MobCategory.AXOLOTLS ||
-               category == MobCategory.WATER_AMBIENT;
+        handleStructureEvent(event.getLevel().getLevel(), event.getEntity().blockPosition(),
+                (structure, flags) -> {
+                    if (event.getEntity().getType().getCategory() == MobCategory.CREATURE && !flags.allowCreatureSpawning()) {
+                        event.setCanceled(true);
+                        return true;
+                    }
+                    return false;
+                });
     }
 
     @SubscribeEvent
@@ -236,7 +204,7 @@ public class StructureEventHandler {
         if (event.getTarget() instanceof Player) {
             handleStructureEvent(event.getEntity().level(), event.getEntity().blockPosition(),
                     (structure, flags) -> {
-                        if (!flags.allowPlayerPvP()) {
+                        if (!flags.allowPlayerPVP()) {
                             event.setCanceled(true);
                             return true;
                         }
@@ -246,13 +214,13 @@ public class StructureEventHandler {
     }
 
     @SubscribeEvent
-    public void onItemPickup(PlayerEvent.ItemPickupEvent event) {
+    public void onItemPickup(EntityItemPickupEvent event) {
         if (!configManager.isReady()) return;
 
-        ItemEntity item = event.getOriginalEntity();
+        ItemEntity item = event.getItem();
         handleStructureEvent(item.level(), item.blockPosition(), (structure, flags) -> {
             if (!flags.allowItemPickup()) {
-                event.setCanceled(true);
+                event.setResult(Event.Result.DENY);
                 return true;
             }
             return false;
@@ -264,23 +232,28 @@ public class StructureEventHandler {
         structureFlags.clear();
     }
 
-    public void handleStructureEvent(Level level, BlockPos pos, BiPredicate<ResourceLocation, DynamicStructureFlags> callback) {
+    public void handleStructureEvent(Level level, BlockPos pos, BiPredicate<ResourceLocation, StructureEventFlags> callback) {
+        if (Thread.currentThread().getName().contains("worldgen")) return;
+        if (!configManager.isReady() || !level.hasChunkAt(pos)) return;
+        if (!(level instanceof ServerLevel serverLevel)) return;
 
-        if (Thread.currentThread().getName().contains("worldgen") || 
-            !configManager.isReady() || 
-            !level.hasChunkAt(pos) ||
-            !(level instanceof ServerLevel serverLevel)) {
-            return;
-        }
-
-        ResourceLocation cached = structureCache.getStructureAtPosition(level, pos);
+        ResourceLocation cached = structureCache.getStructureAt(level, pos);
         if (cached != null) {
-            DynamicStructureFlags flags = structureFlags.get(cached);
+            StructureEventFlags flags = structureFlags.get(cached);
             if (flags != null) {
-                DefeatedStructuresData data = DefeatedStructuresData.get(serverLevel);
-                var bounds = structureCache.getCachedBounds(level, cached, pos);
-                if (bounds != null && data.isDefeated(cached, bounds)) {
-                    return;
+                var registry = level.registryAccess().registryOrThrow(Registries.STRUCTURE);
+                for (var structure : registry) {
+                    ResourceLocation id = registry.getKey(structure);
+                    if (id != null && id.equals(cached)) {
+                        var reference = serverLevel.structureManager().getStructureAt(pos, structure);
+                        if (reference.isValid()) {
+                            DefeatedStructuresData data = DefeatedStructuresData.get(serverLevel);
+                            if (data.isDefeated(id, reference.getBoundingBox())) {
+                                return;
+                            }
+                        }
+                        break;
+                    }
                 }
                 callback.test(cached, flags);
             }
@@ -298,17 +271,12 @@ public class StructureEventHandler {
             if (reference.isValid()) {
                 foundStructure = true;
                 id = normalizeStructureId(id);
-                
-                var bounds = reference.getBoundingBox();
-                structureCache.cacheStructure(level, pos, id, bounds);
-                structureCache.cacheStructureBounds(level, id, bounds);
 
-                DynamicStructureFlags flags = structureFlags.get(id);
+                structureCache.cacheStructure(level, pos, id, reference.getBoundingBox());
+
+                StructureEventFlags flags = structureFlags.get(id);
                 if (flags != null) {
-                    DefeatedStructuresData data = DefeatedStructuresData.get(serverLevel);
-                    if (!data.isDefeated(id, bounds)) {
-                        callback.test(id, flags);
-                    }
+                    callback.test(id, flags);
                 }
                 break;
             }
@@ -318,32 +286,13 @@ public class StructureEventHandler {
             EmptyChunksData.get(serverLevel).markEmpty(new ChunkPos(pos));
         }
     }
-    
 
     @SubscribeEvent
     public void onItemUse(PlayerInteractEvent.RightClickItem event) {
         if (event.getLevel().isClientSide()) return;
         Player player = event.getEntity();
+
         handleStructureEvent(player.level(), player.blockPosition(), (structure, flags) -> {
-            ResourceLocation itemId = event.getLevel().registryAccess()
-                    .registryOrThrow(Registries.ITEM).getKey(event.getItemStack().getItem());
-            
-            if (itemId != null) {
-                String itemIdStr = itemId.toString();
-                
-                List<String> whitelist = flags.getItemUseWhitelist();
-                if (whitelist != null && !whitelist.isEmpty() && whitelist.contains(itemIdStr)) {
-                    return false;
-                }
-                
-                List<String> blacklist = flags.getItemUseBlacklist();
-                if (blacklist != null && !blacklist.isEmpty() && blacklist.contains(itemIdStr)) {
-                    event.setCanceled(true);
-                    player.displayClientMessage(Component.translatable("message.structures_tweaker.item_blacklisted"), true);
-                    return true;
-                }
-            }
-            
             if (!flags.allowEnderPearls() && event.getItemStack().is(Items.ENDER_PEARL)) {
                 event.setCanceled(true);
                 player.displayClientMessage(Component.translatable("message.structures_tweaker.no_pearls"), true);
@@ -371,7 +320,14 @@ public class StructureEventHandler {
         return new ResourceLocation(namespace, path);
     }
 
+    private boolean isProtectedItem(ItemEntity item) {
+        return item.getItem().getItem() instanceof BlockItem blockItem &&
+                (STRUCTURE_BLOCKS.contains(blockItem.getBlock()) ||
+                        PROTECTED_BLOCKS.contains(blockItem.getBlock()));
+    }
+
     private static StructureEventHandler INSTANCE;
+
     public static void setInstance(StructureEventHandler handler) {
         INSTANCE = handler;
     }
@@ -391,81 +347,20 @@ public class StructureEventHandler {
         });
         return shouldCancel.get();
     }
-    
-    @SubscribeEvent
-    public void onEnderPearlTeleport(EntityTeleportEvent.EnderPearl event) {
-        if (!configManager.isReady()) {
-            return;
-        }
-        
-        Player player = event.getPlayer();
-        if (player == null || player.level().isClientSide()) {
-            return;
-        }
-        
-        BlockPos targetPos = new BlockPos((int)event.getTargetX(), (int)event.getTargetY(), (int)event.getTargetZ());
-        
-        handleStructureEvent(player.level(), targetPos, (structure, flags) -> {
-            if (!flags.allowEnderTeleportation()) {
-                event.setCanceled(true);
-                player.displayClientMessage(Component.translatable("message.structures_tweaker.no_ender_teleportation"), true);
-                return true;
-            }
-            return false;
-        });
-    }
-    
-    @SubscribeEvent
-    public void onChorusFruitTeleport(EntityTeleportEvent.ChorusFruit event) {
-        if (!configManager.isReady()) {
-            return;
-        }
-        
-        if (!(event.getEntityLiving() instanceof Player player)) {
-            return;
-        }
-        
-        if (player.level().isClientSide()) {
-            return;
-        }
-        
-        BlockPos targetPos = new BlockPos((int)event.getTargetX(), (int)event.getTargetY(), (int)event.getTargetZ());
-        
-        handleStructureEvent(player.level(), targetPos, (structure, flags) -> {
-            if (!flags.allowEnderTeleportation()) {
-                event.setCanceled(true);
-                player.displayClientMessage(Component.translatable("message.structures_tweaker.no_ender_teleportation"), true);
-                return true;
-            }
-            return false;
-        });
-    }
 
-
-    @SubscribeEvent
-    public void onCreativeFlightToggle(CreativeFlightEvent.Toggle event) {
-        if (!configManager.isReady()) {
-            return;
-        }
-        
-        if (!(event.getPlayer().level() instanceof ServerLevel)) {
-            return;
-        }
-
-        if (!event.isEnablingFlight()) {
-            return;
-        }
-        
-        handleStructureEvent(event.getPlayer().level(), event.getPlayer().blockPosition(), (structure, flags) -> {
-            if (!flags.allowCreativeFlight()) {
-                event.getPlayer().displayClientMessage(Component.translatable("message.structures_tweaker.no_creative_flight"), true);
-                event.setCanceled(true);
-                event.setFlightState(false);
-                return true;
-            }
-            return false;
-        });
-    }
-
+    private record StructureEventFlags(
+            boolean canBreakBlocks,
+            boolean canInteract,
+            boolean canPlaceBlocks,
+            boolean allowPlayerPVP,
+            boolean allowCreatureSpawning,
+            boolean allowFireSpread,
+            boolean allowExplosions,
+            boolean allowItemPickup,
+            boolean onlyProtectOriginalBlocks,
+            boolean allowElytraFlight,
+            boolean allowEnderPearls,
+            boolean allowRiptide
+    ) {}
 
 }
