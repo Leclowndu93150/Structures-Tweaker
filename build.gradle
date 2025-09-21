@@ -103,6 +103,7 @@ dependencies {
     annotationProcessor 'org.spongepowered:mixin:0.8.5:processor'
     //runtimeOnly(files("libs/undergarden_additional_structures.jar"))
     //runtimeOnly "curse.maven:the-undergarden-379849:5182632"
+    modImplementation "curse.maven:baguettelib-1264423:6909482"
 }
 
 mixin {
