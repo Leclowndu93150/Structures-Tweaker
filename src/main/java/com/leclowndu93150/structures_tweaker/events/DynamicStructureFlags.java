@@ -68,6 +68,26 @@ public class DynamicStructureFlags {
         return getValue(ConfigRegistry.ITEM_USE_WHITELIST); 
     }
     
+    @SuppressWarnings("unchecked")
+    public List<String> getBlockBreakWhitelist() { 
+        return getValue(ConfigRegistry.BLOCK_BREAK_WHITELIST); 
+    }
+    
+    @SuppressWarnings("unchecked")
+    public List<String> getBlockBreakBlacklist() { 
+        return getValue(ConfigRegistry.BLOCK_BREAK_BLACKLIST); 
+    }
+    
+    @SuppressWarnings("unchecked")
+    public List<String> getBlockPlaceWhitelist() { 
+        return getValue(ConfigRegistry.BLOCK_PLACE_WHITELIST); 
+    }
+    
+    @SuppressWarnings("unchecked")
+    public List<String> getBlockPlaceBlacklist() { 
+        return getValue(ConfigRegistry.BLOCK_PLACE_BLACKLIST); 
+    }
+    
     public Map<String, Object> getAllFlags() {
         return new HashMap<>(flags);
     }

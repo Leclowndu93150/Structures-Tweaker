@@ -45,19 +45,23 @@ global.json (server defaults):
 {
   "config": {
     "canBreakBlocks": false,
-    "allowElytraFlight": false
+    "canPlaceBlocks": false,
+    "blockBreakWhitelist": ["minecraft:spawner", "minecraft:chest"],
+    "blockPlaceWhitelist": ["minecraft:torch", "minecraft:ladder"]
   }
 }
 
-minecraft/creative_plot.json (creative area exception):
+minecraft/stronghold.json (dungeon with restrictions):
 {
   "individualOverrides": {
-    "canBreakBlocks": true
+    "canBreakBlocks": false,
+    "blockBreakBlacklist": ["minecraft:end_portal_frame", "minecraft:bedrock"]
   }
 }
 
-In this setup, the creative plot allows breaking blocks while inheriting
-the elytra restriction from global settings.
+In this setup, most structures prevent breaking/placing blocks but allow
+torches and ladders to be placed. The stronghold specifically prevents
+breaking the end portal frame, even if breaking becomes allowed.
 
 HOW PRIORITY WORKS
 -----------------

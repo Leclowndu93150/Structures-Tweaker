@@ -85,6 +85,24 @@ public class StructureEventHandler {
         }
 
         handleStructureEvent(event.getPlayer().level(), event.getPos(), (structure, flags) -> {
+            Block block = event.getState().getBlock();
+            ResourceLocation blockId = event.getPlayer().level().registryAccess()
+                    .registryOrThrow(Registries.BLOCK).getKey(block);
+            
+            if (blockId != null) {
+                String blockIdStr = blockId.toString();
+                
+                List<String> whitelist = flags.getBlockBreakWhitelist();
+                if (whitelist != null && !whitelist.isEmpty() && whitelist.contains(blockIdStr)) {
+                    return false;
+                }
+                
+                List<String> blacklist = flags.getBlockBreakBlacklist();
+                if (blacklist != null && !blacklist.isEmpty() && blacklist.contains(blockIdStr)) {
+                    event.setCanceled(true);
+                    return true;
+                }
+            }
 
             StructureBlocksData blockData = StructureBlocksData.get(serverLevel);
 
@@ -114,6 +132,29 @@ public class StructureEventHandler {
         if (!configManager.isReady()) return;
 
         handleStructureEvent(Objects.requireNonNull(event.getEntity()).level(), event.getPos(), (structure, flags) -> {
+            Block block = event.getPlacedBlock().getBlock();
+            ResourceLocation blockId = event.getEntity().level().registryAccess()
+                    .registryOrThrow(Registries.BLOCK).getKey(block);
+            
+            if (blockId != null) {
+                String blockIdStr = blockId.toString();
+                
+                List<String> whitelist = flags.getBlockPlaceWhitelist();
+                if (whitelist != null && !whitelist.isEmpty() && whitelist.contains(blockIdStr)) {
+                    if (!event.isCanceled()) {
+                        StructureBlocksData blockData = StructureBlocksData.get(serverLevel);
+                        blockData.addPlayerBlock(structure, event.getPos());
+                    }
+                    return false;
+                }
+                
+                List<String> blacklist = flags.getBlockPlaceBlacklist();
+                if (blacklist != null && !blacklist.isEmpty() && blacklist.contains(blockIdStr)) {
+                    event.setCanceled(true);
+                    return true;
+                }
+            }
+            
             if (event.getPlacedBlock().getBlock() == Blocks.FIRE) {
                 if (!flags.allowFireSpread()) {
                     event.setCanceled(true);

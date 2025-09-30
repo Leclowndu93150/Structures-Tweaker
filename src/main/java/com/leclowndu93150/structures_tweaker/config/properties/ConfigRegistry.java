@@ -90,6 +90,26 @@ public class ConfigRegistry {
         "itemUseWhitelist", new ArrayList<>(), "Items that can always be used in the structure, overrides blacklist"
     );
     
+    @SuppressWarnings("unchecked")
+    public static final ConfigProperty<List<String>> BLOCK_BREAK_WHITELIST = registerList(
+        "blockBreakWhitelist", new ArrayList<>(), "Blocks that can always be broken, overrides canBreakBlocks restriction (e.g., minecraft:spawner, minecraft:chest)"
+    );
+    
+    @SuppressWarnings("unchecked")
+    public static final ConfigProperty<List<String>> BLOCK_BREAK_BLACKLIST = registerList(
+        "blockBreakBlacklist", new ArrayList<>(), "Blocks that can never be broken, even if canBreakBlocks is true (e.g., minecraft:bedrock, minecraft:barrier)"
+    );
+    
+    @SuppressWarnings("unchecked")
+    public static final ConfigProperty<List<String>> BLOCK_PLACE_WHITELIST = registerList(
+        "blockPlaceWhitelist", new ArrayList<>(), "Blocks that can always be placed, overrides canPlaceBlocks restriction (e.g., minecraft:torch, minecraft:ladder)"
+    );
+    
+    @SuppressWarnings("unchecked")
+    public static final ConfigProperty<List<String>> BLOCK_PLACE_BLACKLIST = registerList(
+        "blockPlaceBlacklist", new ArrayList<>(), "Blocks that can never be placed, even if canPlaceBlocks is true (e.g., minecraft:tnt, minecraft:wither_skeleton_skull)"
+    );
+    
     public static <T> ConfigProperty<T> register(String key, T defaultValue, Class<T> type, String description) {
         ConfigProperty<T> property = new ConfigProperty<>(key, defaultValue, type, description);
         PROPERTIES.put(key, property);
