@@ -70,6 +70,10 @@ public class ConfigRegistry {
         "allowEnderTeleportation", true, Boolean.class, "Allow all ender-based teleportation (pearls, chorus fruit) in structure"
     );
     
+    public static final ConfigProperty<Boolean> CREATIVE_BYPASS = register(
+        "creativeBypass", false, Boolean.class, "Allow creative mode players to bypass player restrictions"
+    );
+    
     @SuppressWarnings("unchecked")
     public static final ConfigProperty<List<String>> INTERACTION_WHITELIST = registerList(
         "interactionWhitelist", new ArrayList<>(), "Blocks that can always be interacted with (e.g., minecraft:lever, minecraft:button)"

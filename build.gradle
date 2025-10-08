@@ -103,6 +103,10 @@ dependencies {
     implementation(files("libs/portingdeadlibs-1.0.9.jar"))
     runtimeOnly "curse.maven:the-undergarden-379849:5769852"
     implementation "curse.maven:baguettelib-1264423:6882611"
+    runtimeOnly "curse.maven:architectury-api-419699:5786327"
+
+    runtimeOnly "curse.maven:ftb-ultimine-forge-386134:7025219"
+    runtimeOnly "curse.maven:ftb-library-forge-404465:7029003"
 }
 
 // This block of code expands all declared replace properties in the specified resource targets.

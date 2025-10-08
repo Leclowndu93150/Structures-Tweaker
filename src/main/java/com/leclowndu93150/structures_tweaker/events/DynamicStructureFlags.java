@@ -47,6 +47,7 @@ public class DynamicStructureFlags {
     public boolean allowEnderTeleportation() { return getValue(ConfigRegistry.ALLOW_ENDER_TELEPORTATION); }
     public boolean preventHostileSpawns() { return getValue(ConfigRegistry.PREVENT_HOSTILE_SPAWNS); }
     public boolean preventPassiveSpawns() { return getValue(ConfigRegistry.PREVENT_PASSIVE_SPAWNS); }
+    public boolean creativeBypass() { return getValue(ConfigRegistry.CREATIVE_BYPASS); }
     
     @SuppressWarnings("unchecked")
     public List<String> getInteractionWhitelist() { 

@@ -3,26 +3,24 @@ package com.leclowndu93150.structures_tweaker.events;
 import com.leclowndu93150.baguettelib.event.entity.CreativeFlightEvent;
 import com.leclowndu93150.structures_tweaker.StructuresTweaker;
 import com.leclowndu93150.structures_tweaker.cache.StructureCache;
-import com.leclowndu93150.structures_tweaker.config.core.StructureConfig;
 import com.leclowndu93150.structures_tweaker.config.core.StructureConfigManager;
 import com.leclowndu93150.structures_tweaker.data.DefeatedStructuresData;
 import com.leclowndu93150.structures_tweaker.data.EmptyChunksData;
 import com.leclowndu93150.structures_tweaker.data.StructureBlocksData;
+//import dev.architectury.event.EventResult;
+//import dev.architectury.utils.value.IntValue;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.Entity;
-import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.Mob;
 import net.minecraft.world.entity.MobCategory;
 import net.minecraft.world.entity.MobSpawnType;
-import net.minecraft.world.entity.ai.village.poi.PoiManager;
 import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.entity.player.Player;
-import net.minecraft.world.item.BlockItem;
-import net.minecraft.world.item.Item;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.item.TridentItem;
 import net.minecraft.world.level.ChunkPos;
@@ -30,11 +28,11 @@ import net.minecraft.world.level.Level;
 import net.minecraft.world.level.ServerLevelAccessor;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.levelgen.structure.Structure;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.neoforge.common.util.TriState;
 import net.neoforged.neoforge.event.entity.EntityTeleportEvent;
-import net.neoforged.neoforge.event.entity.living.FinalizeSpawnEvent;
 import net.neoforged.neoforge.event.entity.living.MobSpawnEvent;
 import net.neoforged.neoforge.event.entity.player.AttackEntityEvent;
 import net.neoforged.neoforge.event.entity.player.ItemEntityPickupEvent;
@@ -45,10 +43,10 @@ import net.neoforged.neoforge.event.server.ServerStoppedEvent;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import javax.annotation.Nullable;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiPredicate;
@@ -74,6 +72,59 @@ public class StructureEventHandler {
         });
     }
 
+//    public EventResult breakBlock(Level level, BlockPos pos, BlockState blockState, ServerPlayer player, @Nullable IntValue intValue) {
+//        if (!configManager.isReady()) {
+//            return EventResult.pass();
+//        }
+//
+//        if (!(level instanceof ServerLevel serverLevel)) {
+//            return EventResult.pass();
+//        }
+//
+//        EventResult[] result = {EventResult.pass()};
+//
+//        handleStructureEvent(level, pos, player, (structure, flags) -> {
+//            Block block = blockState.getBlock();
+//            ResourceLocation blockId = level.registryAccess()
+//                    .registryOrThrow(Registries.BLOCK).getKey(block);
+//
+//            if (blockId != null) {
+//                String blockIdStr = blockId.toString();
+//
+//                List<String> whitelist = flags.getBlockBreakWhitelist();
+//                if (whitelist != null && !whitelist.isEmpty() && whitelist.contains(blockIdStr)) {
+//                    return false;
+//                }
+//
+//                List<String> blacklist = flags.getBlockBreakBlacklist();
+//                if (blacklist != null && !blacklist.isEmpty() && blacklist.contains(blockIdStr)) {
+//                    result[0] = EventResult.interruptFalse();
+//                    return true;
+//                }
+//            }
+//
+//            StructureBlocksData blockData = StructureBlocksData.get(serverLevel);
+//
+//            if (flags.onlyProtectOriginalBlocks()) {
+//                if (blockData.isPlayerPlaced(pos)) {
+//                    blockData.removePlayerBlock(pos);
+//                    return false;
+//                }
+//                result[0] = EventResult.interruptFalse();
+//                return true;
+//            }
+//
+//            if (!flags.canBreakBlocks()) {
+//                result[0] = EventResult.interruptFalse();
+//                return true;
+//            }
+//
+//            return false;
+//        });
+//
+//        return result[0];
+//    }
+
     @SubscribeEvent
     public void onBlockBreak(BlockEvent.BreakEvent event) {
         if (!configManager.isReady()) {
@@ -84,19 +135,19 @@ public class StructureEventHandler {
             return;
         }
 
-        handleStructureEvent(event.getPlayer().level(), event.getPos(), (structure, flags) -> {
+        handleStructureEvent(event.getPlayer().level(), event.getPos(), event.getPlayer(), (structure, flags) -> {
             Block block = event.getState().getBlock();
             ResourceLocation blockId = event.getPlayer().level().registryAccess()
                     .registryOrThrow(Registries.BLOCK).getKey(block);
-            
+
             if (blockId != null) {
                 String blockIdStr = blockId.toString();
-                
+
                 List<String> whitelist = flags.getBlockBreakWhitelist();
                 if (whitelist != null && !whitelist.isEmpty() && whitelist.contains(blockIdStr)) {
                     return false;
                 }
-                
+
                 List<String> blacklist = flags.getBlockBreakBlacklist();
                 if (blacklist != null && !blacklist.isEmpty() && blacklist.contains(blockIdStr)) {
                     event.setCanceled(true);
@@ -127,11 +178,11 @@ public class StructureEventHandler {
 
     @SubscribeEvent
     public void onBlockPlace(BlockEvent.EntityPlaceEvent event) {
-        if (event.getLevel().isClientSide() || !(event.getEntity() instanceof Player) ||
+        if (event.getLevel().isClientSide() || !(event.getEntity() instanceof Player player) ||
                 !(event.getLevel() instanceof ServerLevel serverLevel)) return;
         if (!configManager.isReady()) return;
 
-        handleStructureEvent(Objects.requireNonNull(event.getEntity()).level(), event.getPos(), (structure, flags) -> {
+        handleStructureEvent(Objects.requireNonNull(event.getEntity()).level(), event.getPos(), player, (structure, flags) -> {
             Block block = event.getPlacedBlock().getBlock();
             ResourceLocation blockId = event.getEntity().level().registryAccess()
                     .registryOrThrow(Registries.BLOCK).getKey(block);
@@ -178,7 +229,7 @@ public class StructureEventHandler {
         if (event.getLevel().isClientSide()) return;
         if (!configManager.isReady()) return;
 
-        handleStructureEvent(event.getLevel(), event.getPos(), (structure, flags) -> {
+        handleStructureEvent(event.getLevel(), event.getPos(), event.getEntity(), (structure, flags) -> {
             Block block = event.getLevel().getBlockState(event.getPos()).getBlock();
             ResourceLocation blockId = event.getLevel().registryAccess()
                     .registryOrThrow(Registries.BLOCK).getKey(block);
@@ -319,8 +370,8 @@ public class StructureEventHandler {
         if (event.getEntity().level().isClientSide()) return;
         if (!configManager.isReady()) return;
 
-        if (event.getTarget() instanceof Player) {
-            handleStructureEvent(event.getEntity().level(), event.getEntity().blockPosition(),
+        if (event.getTarget() instanceof Player && event.getEntity() instanceof Player player) {
+            handleStructureEvent(event.getEntity().level(), event.getEntity().blockPosition(), player,
                     (structure, flags) -> {
                         if (!flags.allowPlayerPVP()) {
                             event.setCanceled(true);
@@ -336,7 +387,7 @@ public class StructureEventHandler {
         if (!configManager.isReady()) return;
 
         ItemEntity item = event.getItemEntity();
-        handleStructureEvent(item.level(), item.blockPosition(), (structure, flags) -> {
+        handleStructureEvent(item.level(), item.blockPosition(), event.getPlayer(), (structure, flags) -> {
             if (!flags.allowItemPickup()) {
                 event.setCanPickup(TriState.FALSE);
                 return true;
@@ -352,12 +403,26 @@ public class StructureEventHandler {
     }
 
     public void handleStructureEvent(Level level, BlockPos pos, BiPredicate<ResourceLocation, DynamicStructureFlags> callback) {
+        handleStructureEvent(level, pos, null, callback);
+    }
+    
+    public void handleStructureEvent(Level level, BlockPos pos, @Nullable Player player, BiPredicate<ResourceLocation, DynamicStructureFlags> callback) {
 
         if (Thread.currentThread().getName().contains("worldgen") || 
             !configManager.isReady() || 
             !level.hasChunkAt(pos) ||
             !(level instanceof ServerLevel serverLevel)) {
             return;
+        }
+        
+        if (player != null && player.isCreative()) {
+            ResourceLocation cached = structureCache.getStructureAtPosition(level, pos);
+            if (cached != null) {
+                DynamicStructureFlags flags = structureFlags.get(cached);
+                if (flags != null && flags.creativeBypass()) {
+                    return;
+                }
+            }
         }
 
         ResourceLocation cached = structureCache.getStructureAtPosition(level, pos);
@@ -411,7 +476,7 @@ public class StructureEventHandler {
     public void onItemUse(PlayerInteractEvent.RightClickItem event) {
         if (event.getLevel().isClientSide()) return;
         Player player = event.getEntity();
-        handleStructureEvent(player.level(), player.blockPosition(), (structure, flags) -> {
+        handleStructureEvent(player.level(), player.blockPosition(), player, (structure, flags) -> {
             ResourceLocation itemId = event.getLevel().registryAccess()
                     .registryOrThrow(Registries.ITEM).getKey(event.getItemStack().getItem());
             
@@ -489,7 +554,7 @@ public class StructureEventHandler {
             return;
         }
         
-        handleStructureEvent(event.getPlayer().level(), event.getPlayer().blockPosition(), (structure, flags) -> {
+        handleStructureEvent(event.getPlayer().level(), event.getPlayer().blockPosition(), event.getPlayer(), (structure, flags) -> {
             if (!flags.allowCreativeFlight()) {
                 event.getPlayer().displayClientMessage(Component.translatable("message.structures_tweaker.no_creative_flight"), true);
                 event.setCanceled(true);
@@ -513,7 +578,7 @@ public class StructureEventHandler {
         
         BlockPos targetPos = new BlockPos((int)event.getTargetX(), (int)event.getTargetY(), (int)event.getTargetZ());
         
-        handleStructureEvent(player.level(), targetPos, (structure, flags) -> {
+        handleStructureEvent(player.level(), targetPos, player, (structure, flags) -> {
             if (!flags.allowEnderTeleportation()) {
                 event.setCanceled(true);
                 player.displayClientMessage(Component.translatable("message.structures_tweaker.no_ender_teleportation"), true);
@@ -539,7 +604,7 @@ public class StructureEventHandler {
         
         BlockPos targetPos = new BlockPos((int)event.getTargetX(), (int)event.getTargetY(), (int)event.getTargetZ());
         
-        handleStructureEvent(player.level(), targetPos, (structure, flags) -> {
+        handleStructureEvent(player.level(), targetPos, player, (structure, flags) -> {
             if (!flags.allowEnderTeleportation()) {
                 event.setCanceled(true);
                 player.displayClientMessage(Component.translatable("message.structures_tweaker.no_ender_teleportation"), true);
