@@ -67,6 +67,12 @@ public class StructureEventHandler {
             structureFlags.put(normalizedId, new DynamicStructureFlags(config));
         });
     }
+    
+    public void updateStructureFlag(ResourceLocation structureId, com.leclowndu93150.structures_tweaker.config.core.StructureConfig config) {
+        ResourceLocation normalizedId = normalizeStructureId(structureId);
+        structureFlags.put(normalizedId, new DynamicStructureFlags(config));
+        LOGGER.info("Updated structure flags for {}", normalizedId);
+    }
 
     @SubscribeEvent
     public void onBlockBreak(BlockEvent.BreakEvent event) {

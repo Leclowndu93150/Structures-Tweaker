@@ -142,6 +142,65 @@ public class StructureConfigManager {
         return globalConfig;
     }
     
+    public boolean setConfigValue(ResourceLocation structureId, String propertyKey, Object value) {
+        Path configPath = CONFIG_DIR.resolve(structureId.getNamespace() + "/" + structureId.getPath() + ".json");
+        
+        try {
+            Files.createDirectories(configPath.getParent());
+            
+            ModularStructureConfig individualConfig;
+            if (Files.exists(configPath)) {
+                String content = Files.readString(configPath);
+                JsonObject json = JsonParser.parseString(content).getAsJsonObject();
+                
+                JsonObject configObject;
+                if (json.has("individualOverrides") && json.get("individualOverrides").isJsonObject()) {
+                    configObject = json.getAsJsonObject("individualOverrides");
+                } else if (json.has("config") && json.get("config").isJsonObject()) {
+                    configObject = json.getAsJsonObject("config");
+                } else {
+                    configObject = new JsonObject();
+                }
+                
+                individualConfig = ModularStructureConfig.fromJson(configObject, false);
+            } else {
+                individualConfig = new ModularStructureConfig();
+            }
+            
+            individualConfig.setValue(propertyKey, value);
+            
+            IndividualConfigWrapper wrapper = new IndividualConfigWrapper(individualConfig, globalConfig);
+            String json = GSON.toJson(wrapper);
+            Files.writeString(configPath, json);
+            
+            InheritedStructureConfig inherited = new InheritedStructureConfig(
+                globalConfig, individualConfig.getExplicitlySetValues()
+            );
+            configCache.put(structureId, inherited);
+            
+            if (configUpdateListener != null) {
+                configUpdateListener.onConfigUpdate(structureId, inherited);
+            }
+            
+            LOGGER.info("Updated config for {}: {} = {}", structureId, propertyKey, value);
+            return true;
+            
+        } catch (Exception e) {
+            LOGGER.error("Failed to set config value for {}: {}", structureId, e.getMessage());
+            return false;
+        }
+    }
+    
+    private ConfigUpdateListener configUpdateListener;
+    
+    public void setConfigUpdateListener(ConfigUpdateListener listener) {
+        this.configUpdateListener = listener;
+    }
+    
+    public interface ConfigUpdateListener {
+        void onConfigUpdate(ResourceLocation structureId, StructureConfig config);
+    }
+    
     private void loadOrCreateGlobalConfig() {
         try {
             Files.createDirectories(CONFIG_DIR);
@@ -174,9 +233,6 @@ public class StructureConfigManager {
         }
     }
     
-    /**
-     * Wrapper for individual configs that only saves properties different from global
-     */
     public static class IndividualConfigWrapper {
         private final Map<String, Object> individualOverrides;
         private final String note;
@@ -185,15 +241,8 @@ public class StructureConfigManager {
             this.individualOverrides = new HashMap<>();
             this.note = "Only properties that differ from global config are saved here. See global.json for defaults.";
             
-            // Only include properties that differ from global defaults
-            for (var entry : individual.getAllValues().entrySet()) {
-                String key = entry.getKey();
-                Object individualValue = entry.getValue();
-                Object globalValue = global.getAllValues().get(key);
-                
-                if (!java.util.Objects.equals(individualValue, globalValue)) {
-                    individualOverrides.put(key, individualValue);
-                }
+            for (var entry : individual.getExplicitlySetValues().entrySet()) {
+                individualOverrides.put(entry.getKey(), entry.getValue());
             }
         }
     }
