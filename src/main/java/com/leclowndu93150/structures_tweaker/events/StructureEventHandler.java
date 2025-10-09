@@ -3,6 +3,7 @@ package com.leclowndu93150.structures_tweaker.events;
 import com.leclowndu93150.baguettelib.event.entity.CreativeFlightEvent;
 import com.leclowndu93150.structures_tweaker.StructuresTweaker;
 import com.leclowndu93150.structures_tweaker.cache.StructureCache;
+import com.leclowndu93150.structures_tweaker.config.core.StructureConfig;
 import com.leclowndu93150.structures_tweaker.config.core.StructureConfigManager;
 import com.leclowndu93150.structures_tweaker.data.DefeatedStructuresData;
 import com.leclowndu93150.structures_tweaker.data.EmptyChunksData;
@@ -40,6 +41,7 @@ import net.neoforged.neoforge.event.entity.player.PlayerInteractEvent;
 import net.neoforged.neoforge.event.level.BlockEvent;
 import net.neoforged.neoforge.event.level.ExplosionEvent;
 import net.neoforged.neoforge.event.server.ServerStoppedEvent;
+import net.neoforged.neoforge.event.tick.PlayerTickEvent;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -55,6 +57,7 @@ public class StructureEventHandler {
     private final StructureConfigManager configManager;
     private final StructureCache structureCache;
     private final Map<ResourceLocation, DynamicStructureFlags> structureFlags;
+    private int tickCounter = 0;
 
     private static final Logger LOGGER = LogManager.getLogger(StructuresTweaker.MODID);
 
@@ -70,6 +73,12 @@ public class StructureEventHandler {
             ResourceLocation normalizedId = normalizeStructureId(id);
             structureFlags.put(normalizedId, new DynamicStructureFlags(config));
         });
+    }
+    
+    public void updateStructureFlag(ResourceLocation structureId, StructureConfig config) {
+        ResourceLocation normalizedId = normalizeStructureId(structureId);
+        structureFlags.put(normalizedId, new DynamicStructureFlags(config));
+        LOGGER.info("Updated structure flags for {}", normalizedId);
     }
 
 //    public EventResult breakBlock(Level level, BlockPos pos, BlockState blockState, ServerPlayer player, @Nullable IntValue intValue) {
@@ -608,6 +617,37 @@ public class StructureEventHandler {
             if (!flags.allowEnderTeleportation()) {
                 event.setCanceled(true);
                 player.displayClientMessage(Component.translatable("message.structures_tweaker.no_ender_teleportation"), true);
+                return true;
+            }
+            return false;
+        });
+    }
+    
+    @SubscribeEvent
+    public void onPlayerTick(PlayerTickEvent.Post event) {
+        if (!configManager.isReady()) {
+            return;
+        }
+        
+        tickCounter++;
+        if (tickCounter % 20 != 0) {
+            return;
+        }
+        
+        Player player = event.getEntity();
+        if (player.level().isClientSide() || !player.getAbilities().flying) {
+            return;
+        }
+        
+        if (!(player.level() instanceof ServerLevel)) {
+            return;
+        }
+        
+        handleStructureEvent(player.level(), player.blockPosition(), player, (structure, flags) -> {
+            if (!flags.allowCreativeFlight()) {
+                player.getAbilities().flying = false;
+                player.onUpdateAbilities();
+                player.displayClientMessage(Component.translatable("message.structures_tweaker.no_creative_flight"), true);
                 return true;
             }
             return false;

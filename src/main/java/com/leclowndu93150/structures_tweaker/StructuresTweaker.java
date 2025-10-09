@@ -1,6 +1,7 @@
 package com.leclowndu93150.structures_tweaker;
 
 import com.leclowndu93150.structures_tweaker.cache.StructureCache;
+import com.leclowndu93150.structures_tweaker.command.ServerCommands;
 import com.leclowndu93150.structures_tweaker.command.ShowStructureCommand;
 import com.leclowndu93150.structures_tweaker.config.core.StructureConfigManager;
 import com.leclowndu93150.structures_tweaker.data.EmptyChunksData;
@@ -50,6 +51,8 @@ public class StructuresTweaker {
         configManager.generateConfigs();
         configManager.loadConfigs();
         structureEventHandler.reloadFlags();
+        ServerCommands.setConfigManager(configManager);
+        configManager.setConfigUpdateListener(structureEventHandler::updateStructureFlag);
     }
 
     @SubscribeEvent
