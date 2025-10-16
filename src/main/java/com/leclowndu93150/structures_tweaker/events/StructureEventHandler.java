@@ -22,6 +22,7 @@ import net.minecraft.world.entity.MobCategory;
 import net.minecraft.world.entity.MobSpawnType;
 import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.item.TridentItem;
 import net.minecraft.world.level.ChunkPos;
@@ -56,7 +57,7 @@ import java.util.function.BiPredicate;
 public class StructureEventHandler {
     private final StructureConfigManager configManager;
     private final StructureCache structureCache;
-    private final Map<ResourceLocation, DynamicStructureFlags> structureFlags;
+    public final Map<ResourceLocation, DynamicStructureFlags> structureFlags;
     private int tickCounter = 0;
 
     private static final Logger LOGGER = LogManager.getLogger(StructuresTweaker.MODID);
@@ -259,12 +260,26 @@ public class StructureEventHandler {
             }
             
             if (!flags.canInteract()) {
+                if (event.getItemStack().getItem() instanceof BlockItem blockItem) {
+                    ResourceLocation itemBlockId = event.getLevel().registryAccess()
+                            .registryOrThrow(Registries.BLOCK).getKey(blockItem.getBlock());
+                    if (itemBlockId != null) {
+                        List<String> placeWhitelist = flags.getBlockPlaceWhitelist();
+                        if (placeWhitelist != null && !placeWhitelist.isEmpty() && placeWhitelist.contains(itemBlockId.toString())) {
+                            event.setUseBlock(TriState.FALSE);
+                            event.setUseItem(TriState.TRUE);
+                            return false;
+                        }
+                    }
+                }
+                
                 event.setCanceled(true);
                 return true;
             }
             return false;
         });
     }
+
 
     @SubscribeEvent
     public void onExplosion(ExplosionEvent.Start event) {
@@ -416,7 +431,6 @@ public class StructureEventHandler {
     }
     
     public void handleStructureEvent(Level level, BlockPos pos, @Nullable Player player, BiPredicate<ResourceLocation, DynamicStructureFlags> callback) {
-
         if (Thread.currentThread().getName().contains("worldgen") || 
             !configManager.isReady() || 
             !level.hasChunkAt(pos) ||
