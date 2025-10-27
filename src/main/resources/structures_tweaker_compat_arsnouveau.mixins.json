@@ -1,0 +1,15 @@
+{
+  "required": false,
+  "minVersion": "0.8",
+  "package": "com.leclowndu93150.structures_tweaker.compat.arsnouveau.mixin",
+  "compatibilityLevel": "JAVA_8",
+  "refmap": "structures_tweaker.refmap.json",
+  "mixins": [
+    "BlockUtilMixin"
+  ],
+  "client": [
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}

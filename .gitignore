@@ -116,6 +116,7 @@ run/
 runs/
 .claude
 NeoForge-1.21.1
+Ars-Nouveau-main
 
 
 # Avoid ignoring Gradle wrapper jar file (.jar files are usually ignored)

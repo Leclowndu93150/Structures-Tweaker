@@ -105,6 +105,10 @@ dependencies {
     implementation "curse.maven:baguettelib-1264423:6882611"
     runtimeOnly "curse.maven:architectury-api-419699:5786327"
 
+    implementation "curse.maven:ars-nouveau-401955:7100043"
+    runtimeOnly "curse.maven:geckolib-388172:7023453"
+    runtimeOnly "curse.maven:curios-309927:6529130"
+
     runtimeOnly "curse.maven:ftb-ultimine-forge-386134:7025219"
     runtimeOnly "curse.maven:ftb-library-forge-404465:7029003"
 }

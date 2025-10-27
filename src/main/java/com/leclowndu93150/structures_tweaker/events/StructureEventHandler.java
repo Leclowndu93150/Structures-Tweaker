@@ -20,6 +20,7 @@ import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.Mob;
 import net.minecraft.world.entity.MobCategory;
 import net.minecraft.world.entity.MobSpawnType;
+import net.minecraft.world.entity.boss.wither.WitherBoss;
 import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.BlockItem;
@@ -34,6 +35,7 @@ import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.levelgen.structure.Structure;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.neoforge.common.util.TriState;
+import net.neoforged.neoforge.event.entity.EntityMobGriefingEvent;
 import net.neoforged.neoforge.event.entity.EntityTeleportEvent;
 import net.neoforged.neoforge.event.entity.living.MobSpawnEvent;
 import net.neoforged.neoforge.event.entity.player.AttackEntityEvent;
@@ -662,6 +664,30 @@ public class StructureEventHandler {
                 player.getAbilities().flying = false;
                 player.onUpdateAbilities();
                 player.displayClientMessage(Component.translatable("message.structures_tweaker.no_creative_flight"), true);
+                return true;
+            }
+            return false;
+        });
+    }
+    
+    @SubscribeEvent
+    public void onMobGriefing(EntityMobGriefingEvent event) {
+        if (!configManager.isReady()) {
+            return;
+        }
+        
+        Entity entity = event.getEntity();
+        if (entity.level().isClientSide()) {
+            return;
+        }
+        
+        if (!(entity instanceof WitherBoss)) {
+            return;
+        }
+        
+        handleStructureEvent(entity.level(), entity.blockPosition(), (structure, flags) -> {
+            if (!flags.canBreakBlocks()) {
+                event.setCanGrief(false);
                 return true;
             }
             return false;
