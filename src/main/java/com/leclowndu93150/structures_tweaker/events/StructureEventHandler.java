@@ -681,12 +681,8 @@ public class StructureEventHandler {
             return;
         }
         
-        if (!(entity instanceof WitherBoss)) {
-            return;
-        }
-        
         handleStructureEvent(entity.level(), entity.blockPosition(), (structure, flags) -> {
-            if (!flags.canBreakBlocks()) {
+            if (flags.preventMobGriefing()) {
                 event.setCanGrief(false);
                 return true;
             }

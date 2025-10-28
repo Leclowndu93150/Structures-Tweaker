@@ -48,6 +48,7 @@ public class DynamicStructureFlags {
     public boolean preventHostileSpawns() { return getValue(ConfigRegistry.PREVENT_HOSTILE_SPAWNS); }
     public boolean preventPassiveSpawns() { return getValue(ConfigRegistry.PREVENT_PASSIVE_SPAWNS); }
     public boolean creativeBypass() { return getValue(ConfigRegistry.CREATIVE_BYPASS); }
+    public boolean preventMobGriefing() { return getValue(ConfigRegistry.PREVENT_MOB_GRIEFING); }
     
     @SuppressWarnings("unchecked")
     public List<String> getInteractionWhitelist() { 

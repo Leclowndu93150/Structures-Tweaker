@@ -74,6 +74,10 @@ public class ConfigRegistry {
         "creativeBypass", false, Boolean.class, "Allow creative mode players to bypass player restrictions"
     );
     
+    public static final ConfigProperty<Boolean> PREVENT_MOB_GRIEFING = register(
+        "preventMobGriefing", false, Boolean.class, "Prevent mob griefing (e.g., creeper explosions, enderman block picking, wither destruction) in structure"
+    );
+    
     @SuppressWarnings("unchecked")
     public static final ConfigProperty<List<String>> INTERACTION_WHITELIST = registerList(
         "interactionWhitelist", new ArrayList<>(), "Blocks that can always be interacted with (e.g., minecraft:lever, minecraft:button)"
