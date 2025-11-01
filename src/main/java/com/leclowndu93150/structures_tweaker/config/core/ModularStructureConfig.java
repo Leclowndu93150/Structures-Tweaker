@@ -35,6 +35,10 @@ public class ModularStructureConfig {
         return property.convert(value);
     }
     
+    public Object getRawValue(String key) {
+        return properties.get(key);
+    }
+    
     public <T> void setValue(ConfigProperty<T> property, T value) {
         properties.put(property.getKey(), value);
         explicitlySetValues.put(property.getKey(), value);

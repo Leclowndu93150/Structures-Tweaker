@@ -1,7 +1,9 @@
 package com.leclowndu93150.structures_tweaker.config.core;
 
 import com.leclowndu93150.structures_tweaker.config.properties.ConfigProperty;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -18,7 +20,20 @@ public class InheritedStructureConfig extends StructureConfig {
 
         Map<String, Object> merged = new HashMap<>();
         merged.putAll(globalConfig.getAllValues());
-        merged.putAll(individualOverrides);
+        
+        for (var entry : individualOverrides.entrySet()) {
+            Object globalValue = merged.get(entry.getKey());
+            Object individualValue = entry.getValue();
+            
+            if (globalValue instanceof List && individualValue instanceof List) {
+                List<Object> mergedList = new ArrayList<>();
+                mergedList.addAll((List<?>) globalValue);
+                mergedList.addAll((List<?>) individualValue);
+                merged.put(entry.getKey(), mergedList);
+            } else {
+                merged.put(entry.getKey(), individualValue);
+            }
+        }
 
         for (var entry : merged.entrySet()) {
             this.setValue(entry.getKey(), entry.getValue());
@@ -27,9 +42,18 @@ public class InheritedStructureConfig extends StructureConfig {
     
     @Override
     public <T> T getValue(ConfigProperty<T> property) {
+        Object globalValue = globalConfig.getRawValue(property.getKey());
+        Object individualValue = individualOverrides.get(property.getKey());
+        
+        if (globalValue instanceof List && individualValue instanceof List) {
+            List<Object> mergedList = new ArrayList<>();
+            mergedList.addAll((List<?>) globalValue);
+            mergedList.addAll((List<?>) individualValue);
+            return property.convert(mergedList);
+        }
+        
         if (individualOverrides.containsKey(property.getKey())) {
-            Object value = individualOverrides.get(property.getKey());
-            return property.convert(value);
+            return property.convert(individualValue);
         }
 
         return globalConfig.getValue(property);
