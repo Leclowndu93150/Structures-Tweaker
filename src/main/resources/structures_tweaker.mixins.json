@@ -5,6 +5,8 @@
   "compatibilityLevel": "JAVA_8",
   "refmap": "structures_tweaker.refmap.json",
   "mixins": [
+    "BucketItemMixin",
+    "FluidUtilMixin",
     "PlayerMixin"
   ],
   "client": [
