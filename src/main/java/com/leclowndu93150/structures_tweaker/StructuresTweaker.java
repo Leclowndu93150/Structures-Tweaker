@@ -14,6 +14,7 @@ import net.minecraft.server.level.ServerPlayerGameMode;
 import net.minecraft.world.entity.boss.wither.WitherBoss;
 import net.minecraft.world.entity.projectile.WitherSkull;
 import net.minecraft.world.item.BlockItem;
+import net.minecraft.world.level.block.DecoratedPotBlock;
 import net.minecraft.world.level.block.state.BlockBehaviour;
 import net.neoforged.bus.api.IEventBus;
 import net.neoforged.bus.api.SubscribeEvent;
@@ -81,7 +82,4 @@ public class StructuresTweaker {
     public void onServerStopped(ServerStoppedEvent event) {
         structureCache.clearCache();
     }
-
-
-
 }

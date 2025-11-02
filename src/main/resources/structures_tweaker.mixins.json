@@ -6,6 +6,7 @@
   "refmap": "structures_tweaker.refmap.json",
   "mixins": [
     "BucketItemMixin",
+    "DecoratedPotBlockMixin",
     "FluidUtilMixin",
     "PlayerMixin"
   ],
